@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { ReadingForm } from "./reading-form";
 import { RangeSettings } from "./range-settings";
 import { MetricsGrid } from "./metrics-grid";
@@ -12,10 +12,11 @@ import { GoogleSheetsSync } from "./google-sheets-sync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Clock } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit } from "firebase/firestore";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2 } from "lucide-react";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, getDocs, where } from "firebase/firestore";
 import { useFirestore, useCollection } from "@/firebase";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 export interface Reading {
   id: string;
@@ -29,10 +30,10 @@ export function GulaDashboard() {
   const [maxRange, setMaxRange] = useState<number>(140);
   const [timeFilter, setTimeFilter] = useState<'all' | '24h'>('all');
 
-  // Menggunakan Firebase Hook untuk mengambil data
+  // Load readings from Firestore
   const readingsQuery = useMemo(() => {
     if (!db) return null;
-    return query(collection(db, "readings"), orderBy("timestamp", "desc"), limit(100));
+    return query(collection(db, "readings"), orderBy("timestamp", "desc"), limit(200));
   }, [db]);
 
   const { data: readingsData, loading } = useCollection(readingsQuery);
@@ -53,28 +54,42 @@ export function GulaDashboard() {
     return allReadings.filter(r => new Date(r.timestamp) >= past24h);
   }, [allReadings, timeFilter]);
 
-  const addReading = (value: number, timestamp: string) => {
+  const addReading = async (value: number, timestamp: string) => {
     if (!db) return;
     
-    // Simpan ke Firestore
-    addDoc(collection(db, "readings"), {
-      value,
-      timestamp,
-      createdAt: serverTimestamp()
-    });
-  };
-
-  const importReadings = async (newReadings: Reading[]) => {
-    if (!db) return;
-
-    for (const reading of newReadings) {
-      addDoc(collection(db, "readings"), {
-        value: reading.value,
-        timestamp: reading.timestamp,
+    try {
+      // 1. Simpan ke Firestore
+      await addDoc(collection(db, "readings"), {
+        value,
+        timestamp,
         createdAt: serverTimestamp()
       });
+
+      // 2. Simulasi Kirim ke Google Sheets (Opsional - Perlu Apps Script URL)
+      // fetch('URL_APPS_SCRIPT_ANDA', { method: 'POST', body: JSON.stringify({ value, timestamp }) });
+
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Gagal menyimpan data", variant: "destructive" });
     }
   };
+
+  const importReadings = useCallback(async (newReadings: Reading[]) => {
+    if (!db) return;
+
+    // Filter hanya data yang belum ada di database untuk menghindari duplikasi
+    // Kita gunakan batch untuk performa lebih baik (simulasi sederhana di sini)
+    for (const reading of newReadings) {
+      const exists = allReadings.some(r => r.timestamp === reading.timestamp && r.value === reading.value);
+      if (!exists) {
+        await addDoc(collection(db, "readings"), {
+          value: reading.value,
+          timestamp: reading.timestamp,
+          createdAt: serverTimestamp()
+        });
+      }
+    }
+  }, [db, allReadings]);
 
   if (loading && allReadings.length === 0) {
     return (
@@ -117,11 +132,6 @@ export function GulaDashboard() {
           </CardHeader>
           <CardContent>
             <BloodSugarChart readings={filteredReadings} minRange={minRange} maxRange={maxRange} />
-            {timeFilter === '24h' && filteredReadings.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground mt-2">
-                Tidak ada data dalam 24 jam terakhir.
-              </p>
-            )}
           </CardContent>
         </Card>
 
