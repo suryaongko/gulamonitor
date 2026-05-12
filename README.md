@@ -34,3 +34,4 @@ Jika Anda tetap ingin memiliki filenya di komputer Anda:
 - **Real-time Sync**: Data masuk otomatis ke Google Sheets.
 - **PWA Ready**: Bisa diinstal di HP Android (Add to Home Screen).
 - **AI Health Analysis**: Analisis pola gula darah menggunakan AI.
+# gulamonitor
