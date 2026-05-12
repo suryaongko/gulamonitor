@@ -1,0 +1,120 @@
+[debug] [2026-05-12T23:40:48.455Z] ----------------------------------------------------------------------
+[debug] [2026-05-12T23:40:48.458Z] Command:       /nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node /nix/store/gm9mcvzb17vv8cla08khrg29vxn3sq4r-firebase-tools-15.1.0/lib/node_modules/firebase-tools/lib/bin/firebase.js init hosting
+[debug] [2026-05-12T23:40:48.458Z] CLI Version:   15.1.0
+[debug] [2026-05-12T23:40:48.459Z] Platform:      linux
+[debug] [2026-05-12T23:40:48.459Z] Node Version:  v20.19.1
+[debug] [2026-05-12T23:40:48.459Z] Time:          Tue May 12 2026 23:40:48 GMT+0000 (Coordinated Universal Time)
+[debug] [2026-05-12T23:40:48.459Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-12T23:40:49.742Z] No OAuth tokens found
+[debug] [2026-05-12T23:40:49.743Z] No OAuth tokens found
+[error] Failed to fetch Firebase Project from current Studio Workspace: Unable to refresh auth: not yet authenticated.
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  /home/user/studio
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
+[debug] [2026-05-12T23:40:49.754Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/userinfo.email"]
+[debug] [2026-05-12T23:40:49.755Z] > authorizing via signed-in user (surya.ongko@gmail.com)
+[debug] [2026-05-12T23:40:49.756Z] No OAuth tokens found
+[debug] [2026-05-12T23:40:49.757Z] No OAuth tokens found
+[debug] [2026-05-12T23:40:49.757Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/userinfo.email"]
+[debug] [2026-05-12T23:40:49.757Z] > authorizing via signed-in user (surya.ongko@gmail.com)
+[debug] [2026-05-12T23:40:49.764Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 [none]
+[debug] [2026-05-12T23:40:50.142Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 200
+[debug] [2026-05-12T23:40:50.143Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 {"projectId":"studio-7787625352-ff331","projectNumber":"726232883781","displayName":"Firebase app","name":"projects/studio-7787625352-ff331","resources":{"hostingSite":"studio-7787625352-ff331"},"state":"ACTIVE","etag":"1_1c814942-62bd-4f30-b744-747335451057"}
+[info] i  Using project studio-7787625352-ff331 (Firebase app) . 
+[info] 
+=== Hosting Setup
+[debug] [2026-05-12T23:40:50.159Z] No OAuth tokens found
+[debug] [2026-05-12T23:40:50.159Z] No OAuth tokens found
+[debug] [2026-05-12T23:40:50.159Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/userinfo.email"]
+[debug] [2026-05-12T23:40:50.159Z] > authorizing via signed-in user (surya.ongko@gmail.com)
+[debug] [2026-05-12T23:40:50.160Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 [none]
+[debug] [2026-05-12T23:40:50.433Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 200
+[debug] [2026-05-12T23:40:50.434Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 {"projectId":"studio-7787625352-ff331","projectNumber":"726232883781","displayName":"Firebase app","name":"projects/studio-7787625352-ff331","resources":{"hostingSite":"studio-7787625352-ff331"},"state":"ACTIVE","etag":"1_1c814942-62bd-4f30-b744-747335451057"}
+[info] 
+[info] Your public directory is the folder (relative to your project directory) that
+[info] will contain Hosting assets to be uploaded with firebase deploy. If you
+[info] have a build process for your assets, use your build's output directory.
+[info] 
+[info] 
+[info] i  Detected a .git folder at /home/user/studio 
+[info] i  Authorizing with GitHub to upload your service account to a GitHub repository's secrets store. 
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://github.com/login/oauth/authorize?client_id=89cf50f02ac6aaed3484&state=480194458&redirect_uri=http%3A%2F%2Flocalhost%3A9005&scope=read%3Auser%20repo%20public_repo
+[info] 
+[info] Waiting for authentication...
+[debug] [2026-05-12T23:43:33.110Z] ----------------------------------------------------------------------
+[debug] [2026-05-12T23:43:33.113Z] Command:       /nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node /nix/store/gm9mcvzb17vv8cla08khrg29vxn3sq4r-firebase-tools-15.1.0/lib/node_modules/firebase-tools/lib/bin/firebase.js init hosting
+[debug] [2026-05-12T23:43:33.114Z] CLI Version:   15.1.0
+[debug] [2026-05-12T23:43:33.114Z] Platform:      linux
+[debug] [2026-05-12T23:43:33.114Z] Node Version:  v20.19.1
+[debug] [2026-05-12T23:43:33.114Z] Time:          Tue May 12 2026 23:43:33 GMT+0000 (Coordinated Universal Time)
+[debug] [2026-05-12T23:43:33.115Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-12T23:43:34.323Z] No OAuth tokens found
+[debug] [2026-05-12T23:43:34.324Z] No OAuth tokens found
+[error] Failed to fetch Firebase Project from current Studio Workspace: Unable to refresh auth: not yet authenticated.
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  /home/user/studio
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
+[debug] [2026-05-12T23:43:34.334Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/userinfo.email"]
+[debug] [2026-05-12T23:43:34.335Z] > authorizing via signed-in user (surya.ongko@gmail.com)
+[debug] [2026-05-12T23:43:34.336Z] No OAuth tokens found
+[debug] [2026-05-12T23:43:34.336Z] No OAuth tokens found
+[debug] [2026-05-12T23:43:34.336Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/userinfo.email"]
+[debug] [2026-05-12T23:43:34.336Z] > authorizing via signed-in user (surya.ongko@gmail.com)
+[debug] [2026-05-12T23:43:34.340Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 [none]
+[debug] [2026-05-12T23:43:34.705Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 200
+[debug] [2026-05-12T23:43:34.706Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 {"projectId":"studio-7787625352-ff331","projectNumber":"726232883781","displayName":"Firebase app","name":"projects/studio-7787625352-ff331","resources":{"hostingSite":"studio-7787625352-ff331"},"state":"ACTIVE","etag":"1_1c814942-62bd-4f30-b744-747335451057"}
+[info] i  Using project studio-7787625352-ff331 (Firebase app) . 
+[info] 
+=== Hosting Setup
+[debug] [2026-05-12T23:43:34.720Z] No OAuth tokens found
+[debug] [2026-05-12T23:43:34.720Z] No OAuth tokens found
+[debug] [2026-05-12T23:43:34.720Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/userinfo.email"]
+[debug] [2026-05-12T23:43:34.720Z] > authorizing via signed-in user (surya.ongko@gmail.com)
+[debug] [2026-05-12T23:43:34.720Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 [none]
+[debug] [2026-05-12T23:43:34.977Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 200
+[debug] [2026-05-12T23:43:34.978Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/studio-7787625352-ff331 {"projectId":"studio-7787625352-ff331","projectNumber":"726232883781","displayName":"Firebase app","name":"projects/studio-7787625352-ff331","resources":{"hostingSite":"studio-7787625352-ff331"},"state":"ACTIVE","etag":"1_1c814942-62bd-4f30-b744-747335451057"}
+[info] 
+[info] Your public directory is the folder (relative to your project directory) that
+[info] will contain Hosting assets to be uploaded with firebase deploy. If you
+[info] have a build process for your assets, use your build's output directory.
+[info] 
+[info] 
+[info] i  Detected a .git folder at /home/user/studio 
+[info] i  Authorizing with GitHub to upload your service account to a GitHub repository's secrets store. 
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://github.com/login/oauth/authorize?client_id=89cf50f02ac6aaed3484&state=114427191&redirect_uri=http%3A%2F%2Flocalhost%3A9005&scope=read%3Auser%20repo%20public_repo
+[info] 
+[info] Waiting for authentication...
