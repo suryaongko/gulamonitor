@@ -1,10 +1,10 @@
 {
-  "name": "GulaMonitor Health Sync",
+  "name": "GulaMonitor",
   "short_name": "GulaMonitor",
-  "description": "Monitor and manage your blood sugar levels with ease.",
+  "description": "Monitor gula darah Anda secara pribadi dan aman.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F3F7FA",
+  "background_color": "#ffffff",
   "theme_color": "#266BBF",
   "icons": [
     {
