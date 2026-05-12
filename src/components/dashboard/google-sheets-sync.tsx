@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileSpreadsheet, Loader2, RefreshCw, AlertCircle, CheckCircle2, Zap } from "lucide-react";
+import { FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, Zap, Send } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
 import { Switch } from "@/components/ui/switch";
@@ -67,7 +67,7 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
           if (!dateObj || isNaN(value)) return null;
 
           return {
-            id: dateObj.getTime().toString(), // Gunakan timestamp sebagai ID unik untuk mencegah duplikasi
+            id: dateObj.getTime().toString(), 
             value: value,
             timestamp: dateObj.toISOString(),
           };
@@ -91,7 +91,6 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
     }
   }, [url, onImport]);
 
-  // Efek untuk Auto-Sync saat pertama kali dibuka
   useEffect(() => {
     if (autoSync && url) {
       handleSync(true);
@@ -116,12 +115,12 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
           </div>
         </div>
         <CardDescription>
-          Data dari Sheets akan otomatis ditarik saat Anda membuka aplikasi.
+          Data ditarik otomatis dari Sheets, dan dikirim otomatis ke Sheets saat Anda menambah data baru.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="gs-url">Link CSV "Publish to Web"</Label>
+          <Label htmlFor="gs-url">Link CSV "Publish to Web" (Input)</Label>
           <div className="flex flex-col md:flex-row gap-2">
             <Input 
               id="gs-url"
@@ -141,16 +140,26 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
           </div>
         </div>
 
-        <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
+        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
           <div className="flex items-start gap-3">
-            <Zap className="h-5 w-5 text-primary mt-1" />
+            <div className="p-2 bg-emerald-100 rounded-full text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
             <div className="space-y-1">
-              <p className="text-sm font-bold text-primary">Dua Arah: Kirim ke Sheets</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Agar data baru dari HP otomatis masuk ke Sheets, Anda perlu memasang <b>Google Apps Script</b> di Excel Anda. Hubungi kami jika ingin panduan cara pasang kodenya agar data tidak perlu diketik ulang.
+              <p className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+                Sinkronisasi Dua Arah Aktif
+                <Zap className="h-3 w-3 fill-emerald-600" />
+              </p>
+              <p className="text-xs text-emerald-700 leading-relaxed">
+                URL Web App Google Apps Script telah terpasang. Setiap kali Anda menambah data di HP, baris baru akan muncul di Google Sheets Anda secara otomatis.
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="text-[10px] text-muted-foreground break-all p-2 bg-muted/30 rounded-lg">
+          <p className="font-semibold mb-1 uppercase">Outgoing Web App Endpoint:</p>
+          https://script.google.com/macros/s/.../exec
         </div>
       </CardContent>
     </Card>

@@ -25,6 +25,8 @@ export interface Reading {
   userId?: string;
 }
 
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzp3u7CYidcQ54ILprqUhvG6SdUijycxcYM9AUxcAPsU-7XYEqXOIaeg2VJwCM6PCTg/exec";
+
 export function GulaDashboard() {
   const db = useFirestore();
   const { user } = useUser();
@@ -66,11 +68,31 @@ export function GulaDashboard() {
     if (!db || !user) return;
     
     try {
+      // 1. Simpan ke Firestore
       await addDoc(collection(db, "readings"), {
         value,
         timestamp,
         userId: user.uid,
         createdAt: serverTimestamp()
+      });
+
+      // 2. Kirim ke Google Sheets secara otomatis (Background sync)
+      fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          value, 
+          timestamp,
+          userEmail: user.email 
+        }),
+      }).catch(err => console.error("Apps Script Error:", err));
+
+      toast({ 
+        title: "Data Disimpan", 
+        description: "Data telah disimpan ke database dan sedang dikirim ke Google Sheets." 
       });
     } catch (error) {
       console.error(error);
