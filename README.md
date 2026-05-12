@@ -2,36 +2,31 @@
 
 Aplikasi pemantauan gula darah pribadi yang tersinkronisasi dengan Google Sheets dan diamankan dengan Firebase Auth.
 
-## ☁️ Catatan Penting: Lingkungan Kerja Cloud
-Aplikasi ini berjalan di **Cloud (Internet)**, bukan langsung di harddisk Mac Anda. Itulah sebabnya Anda tidak menemukan filenya di Finder Mac Anda secara otomatis.
+## 🚀 Cara Membuat Aplikasi Live (Online)
+Setelah kode Anda berada di GitHub, ikuti langkah ini agar bisa diakses secara publik:
 
-## 🚀 Cara 1: Upload ke GitHub Langsung (Cara Tercepat)
-Anda tidak perlu mendownload file ke Mac. Gunakan **Terminal** di bawah ini untuk mengirim kode langsung ke GitHub:
+1. **Buka Firebase Console**: Pergi ke [console.firebase.google.com](https://console.firebase.google.com/).
+2. **Pilih Proyek Anda**: Klik proyek yang Anda gunakan untuk aplikasi ini.
+3. **Setup App Hosting**:
+   - Di menu sebelah kiri, cari **App Hosting**.
+   - Klik **Get Started** dan hubungkan dengan akun **GitHub** Anda.
+   - Pilih repositori `GulaMonitor` yang baru saja Anda upload.
+4. **Set Environment Variables**:
+   - Di pengaturan App Hosting, pastikan Anda memasukkan semua kunci API Firebase Anda (seperti `NEXT_PUBLIC_FIREBASE_API_KEY`, dll) agar aplikasi bisa berjalan dengan benar.
+5. **Deployment**: Tunggu proses build selesai. Firebase akan memberikan Anda sebuah **Domain/URL publik**.
 
-1. **Buat Repositori Baru** di GitHub (kosong, tanpa README).
-2. **Buka Terminal** di bagian bawah layar ini.
-3. **Ketik perintah ini satu per satu**:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: GulaMonitor"
-   git remote add origin https://github.com/USERNAME-ANDA/NAMA-REPOS-ANDA.git
-   git branch -M main
-   git push -u origin main
-   ```
+## 📱 Cara Akses di HP Android (Instal Aplikasi)
+Setelah aplikasi Anda live dan memiliki URL:
 
-## 📥 Cara 2: Download File ke Mac Anda
-Jika Anda tetap ingin memiliki filenya di komputer Anda:
-1. Di daftar file sebelah kiri, klik kanan pada area kosong.
-2. Jika ada menu **"Download"** atau **"Export"**, pilih itu.
-3. **Atau lewat Terminal**:
-   - Ketik: `zip -r gula-monitor.zip . -x ".next/*" "node_modules/*"`
-   - Tunggu sampai muncul file `gula-monitor.zip` di daftar file sebelah kiri.
-   - Klik kanan file `gula-monitor.zip` tersebut, lalu pilih **Download**.
+1. Buka URL tersebut (misal: `https://gulamonitor-xyz.web.app`) di **Google Chrome** pada HP Android.
+2. Masuk menggunakan akun Google Anda.
+3. Klik **ikon titik tiga (⋮)** di pojok kanan atas Chrome.
+4. Pilih **"Install app"** atau **"Add to Home screen"**.
+5. Klik **Install**.
+6. Ikon GulaMonitor akan muncul di menu aplikasi HP Anda. Buka dari sana untuk pengalaman layar penuh tanpa bar alamat browser.
 
 ## ✨ Fitur Utama
 - **Google Auth**: Akses pribadi hanya untuk akun Anda.
 - **Real-time Sync**: Data masuk otomatis ke Google Sheets.
-- **PWA Ready**: Bisa diinstal di HP Android (Add to Home Screen).
+- **PWA Ready**: Bisa diinstal di HP Android.
 - **AI Health Analysis**: Analisis pola gula darah menggunakan AI.
-# gulamonitor
