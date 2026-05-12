@@ -1,0 +1,22 @@
+{
+  "name": "GulaMonitor Health Sync",
+  "short_name": "GulaMonitor",
+  "description": "Monitor and manage your blood sugar levels with ease.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F3F7FA",
+  "theme_color": "#266BBF",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/health-icon/192/192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://picsum.photos/seed/health-icon/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
