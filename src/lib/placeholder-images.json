@@ -1,3 +1,10 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "health-dash",
+      "description": "Abstract health monitoring background",
+      "imageUrl": "https://picsum.photos/seed/health1/800/400",
+      "imageHint": "health monitoring"
+    }
+  ]
 }
