@@ -7,9 +7,10 @@ import { MetricsGrid } from "./metrics-grid";
 import { ReadingsList } from "./readings-list";
 import { AIInsightsCard } from "./ai-insights-card";
 import { BloodSugarChart } from "./blood-sugar-chart";
+import { GoogleSheetsSync } from "./google-sheets-sync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, History, Settings, Sparkles } from "lucide-react";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet } from "lucide-react";
 
 export interface Reading {
   id: string;
@@ -41,7 +42,15 @@ export function GulaDashboard() {
       value,
       timestamp,
     };
-    setReadings([newReading, ...readings].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    setReadings(prev => [newReading, ...prev].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+  };
+
+  const importReadings = (newReadings: Reading[]) => {
+    setReadings(prev => {
+      // Merge and remove duplicates if needed, then sort
+      const combined = [...newReadings, ...prev];
+      return combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    });
   };
 
   if (!isLoaded) return null;
@@ -71,6 +80,9 @@ export function GulaDashboard() {
             <TabsTrigger value="ai" className="flex items-center gap-2 rounded-lg">
               <Sparkles className="h-4 w-4" /> AI Insights
             </TabsTrigger>
+            <TabsTrigger value="sync" className="flex items-center gap-2 rounded-lg">
+              <FileSpreadsheet className="h-4 w-4" /> Google Sheets
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="readings" className="mt-4">
@@ -79,6 +91,10 @@ export function GulaDashboard() {
           
           <TabsContent value="ai" className="mt-4">
             <AIInsightsCard readings={readings} minRange={minRange} maxRange={maxRange} />
+          </TabsContent>
+
+          <TabsContent value="sync" className="mt-4">
+            <GoogleSheetsSync onImport={importReadings} />
           </TabsContent>
         </Tabs>
       </div>
