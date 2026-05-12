@@ -20,6 +20,29 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error', message: string }>({ type: 'idle', message: "" });
 
+  const parseIndonesianDate = (dateStr: string) => {
+    // Mencoba menangani format DD/MM/YYYY HH:mm atau format standar
+    if (!dateStr) return null;
+    
+    // Jika formatnya DD/MM/YYYY
+    const parts = dateStr.split(/[\/\-\s:]/);
+    if (parts.length >= 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1; // JS month 0-indexed
+      const year = parts[2].length === 2 ? 2000 + parseInt(parts[2]) : parseInt(parts[2]);
+      
+      const hour = parts[3] ? parseInt(parts[3]) : 0;
+      const min = parts[4] ? parseInt(parts[4]) : 0;
+      
+      const d = new Date(year, month, day, hour, min);
+      if (!isNaN(d.getTime())) return d;
+    }
+    
+    // Fallback ke parser standar
+    const fallback = new Date(dateStr);
+    return isNaN(fallback.getTime()) ? null : fallback;
+  };
+
   const handleSync = async () => {
     if (!url.includes("docs.google.com/spreadsheets") || !url.includes("output=csv")) {
       toast({
@@ -35,35 +58,49 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
 
     try {
       const response = await fetch(url);
-      if (!response.ok) throw new Error("Gagal mengambil data dari Google Sheets.");
+      if (!response.ok) throw new Error("Gagal mengambil data dari Google Sheets. Pastikan link sudah di-Publish to Web.");
       
       const csvText = await response.text();
-      // Memproses baris dan menangani karakter newline yang berbeda
       const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
       
+      if (rows.length <= 1) {
+        throw new Error("File kosong atau hanya berisi header.");
+      }
+
       // Skip header row
       const dataRows = rows.slice(1);
       
       const importedReadings: Reading[] = dataRows
-        .map(row => {
-          // Menangani CSV sederhana (pemisah koma)
-          const columns = row.split(",");
-          const timestamp = columns[0]?.trim();
-          const valueStr = columns[1]?.trim();
-          const value = parseFloat(valueStr);
+        .map((row, index) => {
+          // Menangani pemisah koma atau titik koma (sering di regional Indonesia)
+          const columns = row.includes(";") ? row.split(";") : row.split(",");
+          
+          let timestampStr = columns[0]?.trim();
+          let valueStr = columns[1]?.trim();
 
-          if (!timestamp || isNaN(value)) return null;
+          if (!timestampStr || !valueStr) return null;
+
+          // Bersihkan string angka (tanganin koma sebagai desimal)
+          const cleanValueStr = valueStr.replace(",", ".");
+          const value = parseFloat(cleanValueStr);
+          
+          const dateObj = parseIndonesianDate(timestampStr);
+
+          if (!dateObj || isNaN(value)) {
+            console.warn(`Baris ${index + 2} dilewati: format tidak valid`, { timestampStr, valueStr });
+            return null;
+          }
 
           return {
             id: Math.random().toString(36).substr(2, 9),
             value: value,
-            timestamp: new Date(timestamp).toISOString(),
+            timestamp: dateObj.toISOString(),
           };
         })
         .filter((r): r is Reading => r !== null);
 
       if (importedReadings.length === 0) {
-        throw new Error("Tidak ada data valid yang ditemukan dalam file CSV. Pastikan kolom A adalah tanggal dan kolom B adalah angka.");
+        throw new Error("Tidak ada data valid yang ditemukan. Pastikan Kolom A = Tanggal, Kolom B = Angka Gula Darah.");
       }
 
       onImport(importedReadings);
@@ -73,7 +110,7 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
       });
       toast({
         title: "Sinkronisasi Berhasil",
-        description: `${importedReadings.length} data telah ditambahkan.`
+        description: `${importedReadings.length} data telah ditambahkan ke riwayat.`
       });
     } catch (error: any) {
       console.error(error);
@@ -96,16 +133,16 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
           Google Sheets Sync
         </CardTitle>
         <CardDescription>
-          Hubungkan data gula darah 3 bulan terakhir Anda langsung dari Google Sheets.
+          Hubungkan data gula darah Anda langsung dari spreadsheet.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="gs-url">Link CSV "Publish to Web"</Label>
-          <div className="flex gap-2">
+          <div className="flex flex-col md:flex-row gap-2">
             <Input 
               id="gs-url"
-              placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv" 
+              placeholder="Tempel link CSV di sini..." 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="rounded-xl flex-1"
@@ -113,10 +150,10 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
             <Button 
               onClick={handleSync} 
               disabled={isLoading || !url}
-              className="rounded-xl gap-2 min-w-[120px]"
+              className="rounded-xl gap-2 min-w-[140px]"
             >
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Sync Now
+              Sinkronkan Sekarang
             </Button>
           </div>
         </div>
@@ -136,12 +173,19 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
         )}
 
         <div className="bg-muted/30 p-4 rounded-xl space-y-2">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Instruksi:</p>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Analisa Kolom:</p>
+          <ul className="text-xs text-muted-foreground list-disc ml-4 space-y-1">
+            <li><b>Kolom A:</b> Tanggal & Waktu (Contoh: 27/10/2023 08:00)</li>
+            <li><b>Kolom B:</b> Nilai Gula Darah (Angka saja, misal: 120 atau 120,5)</li>
+            <li>Pemisah desimal boleh menggunakan titik (.) atau koma (,)</li>
+          </ul>
+          
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mt-4">Cara Publish:</p>
           <ol className="text-xs text-muted-foreground list-decimal ml-4 space-y-1">
-            <li>Di Google Sheets, klik <b>File &gt; Share &gt; Publish to web</b>.</li>
-            <li>Pilih tab data Anda dan pilih format <b>CSV</b>.</li>
-            <li>Klik Publish dan tempel link-nya di atas (sudah terisi otomatis untuk Anda).</li>
-            <li>Pastikan kolom A berisi Tanggal/Waktu dan kolom B berisi Nilai Gula Darah.</li>
+            <li>Buka Google Sheets &gt; <b>File</b> &gt; <b>Share</b> &gt; <b>Publish to web</b>.</li>
+            <li>Pilih tab data Anda, ubah "Entire Document" menjadi nama sheet Anda.</li>
+            <li>Ubah format dari "Web Page" menjadi <b>Comma-separated values (.csv)</b>.</li>
+            <li>Klik Publish dan pastikan link berakhir dengan <code>output=csv</code>.</li>
           </ol>
         </div>
       </CardContent>
