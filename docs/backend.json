@@ -1,0 +1,36 @@
+
+{
+  "entities": {
+    "Reading": {
+      "title": "Blood Sugar Reading",
+      "description": "A single blood sugar measurement at a specific time.",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "number",
+          "description": "Blood sugar level in mg/dL"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the reading was taken"
+        }
+      },
+      "required": [
+        "value",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "google.com"
+    ]
+  },
+  "firestore": {
+    "/readings/{readingId}": {
+      "schema": "#/entities/Reading",
+      "description": "Collection of blood sugar readings"
+    }
+  }
+}

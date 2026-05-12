@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -14,7 +15,8 @@ interface GoogleSheetsSyncProps {
 }
 
 export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
-  const [url, setUrl] = useState("");
+  // Menggunakan link yang diberikan user sebagai default
+  const [url, setUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv");
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error', message: string }>({ type: 'idle', message: "" });
 
@@ -36,14 +38,19 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
       if (!response.ok) throw new Error("Gagal mengambil data dari Google Sheets.");
       
       const csvText = await response.text();
-      const rows = csvText.split("\n").slice(1); // Skip header row
+      // Memproses baris dan menangani karakter newline yang berbeda
+      const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
       
-      const importedReadings: Reading[] = rows
+      // Skip header row
+      const dataRows = rows.slice(1);
+      
+      const importedReadings: Reading[] = dataRows
         .map(row => {
+          // Menangani CSV sederhana (pemisah koma)
           const columns = row.split(",");
-          // Asumsi format: Kolom 0 = Timestamp, Kolom 1 = Value
           const timestamp = columns[0]?.trim();
-          const value = parseFloat(columns[1]?.trim());
+          const valueStr = columns[1]?.trim();
+          const value = parseFloat(valueStr);
 
           if (!timestamp || isNaN(value)) return null;
 
@@ -56,7 +63,7 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
         .filter((r): r is Reading => r !== null);
 
       if (importedReadings.length === 0) {
-        throw new Error("Tidak ada data valid yang ditemukan dalam file CSV.");
+        throw new Error("Tidak ada data valid yang ditemukan dalam file CSV. Pastikan kolom A adalah tanggal dan kolom B adalah angka.");
       }
 
       onImport(importedReadings);
@@ -133,7 +140,7 @@ export function GoogleSheetsSync({ onImport }: GoogleSheetsSyncProps) {
           <ol className="text-xs text-muted-foreground list-decimal ml-4 space-y-1">
             <li>Di Google Sheets, klik <b>File &gt; Share &gt; Publish to web</b>.</li>
             <li>Pilih tab data Anda dan pilih format <b>CSV</b>.</li>
-            <li>Klik Publish dan tempel link-nya di atas.</li>
+            <li>Klik Publish dan tempel link-nya di atas (sudah terisi otomatis untuk Anda).</li>
             <li>Pastikan kolom A berisi Tanggal/Waktu dan kolom B berisi Nilai Gula Darah.</li>
           </ol>
         </div>

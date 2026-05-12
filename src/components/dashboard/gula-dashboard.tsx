@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { ReadingForm } from "./reading-form";
 import { RangeSettings } from "./range-settings";
 import { MetricsGrid } from "./metrics-grid";
@@ -10,7 +11,9 @@ import { BloodSugarChart } from "./blood-sugar-chart";
 import { GoogleSheetsSync } from "./google-sheets-sync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet } from "lucide-react";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2 } from "lucide-react";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit } from "firebase/firestore";
+import { useFirestore, useCollection } from "@/firebase";
 
 export interface Reading {
   id: string;
@@ -19,41 +22,60 @@ export interface Reading {
 }
 
 export function GulaDashboard() {
-  const [readings, setReadings] = useState<Reading[]>([]);
+  const db = useFirestore();
   const [minRange, setMinRange] = useState<number>(70);
   const [maxRange, setMaxRange] = useState<number>(140);
-  const [isLoaded, setIsLoaded] = useState(false);
 
-  useEffect(() => {
-    // Mock initial data
-    const initialReadings: Reading[] = [
-      { id: "1", value: 95, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
-      { id: "2", value: 155, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
-      { id: "3", value: 82, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
-      { id: "4", value: 110, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() },
-    ];
-    setReadings(initialReadings);
-    setIsLoaded(true);
-  }, []);
+  // Menggunakan Firebase Hook untuk mengambil data
+  const readingsQuery = useMemo(() => {
+    if (!db) return null;
+    return query(collection(db, "readings"), orderBy("timestamp", "desc"), limit(100));
+  }, [db]);
+
+  const { data: readingsData, loading } = useCollection(readingsQuery);
+
+  const readings = useMemo(() => {
+    if (!readingsData) return [];
+    return readingsData.map(doc => ({
+      id: doc.id,
+      value: doc.value,
+      timestamp: doc.timestamp
+    })) as Reading[];
+  }, [readingsData]);
 
   const addReading = (value: number, timestamp: string) => {
-    const newReading: Reading = {
-      id: Math.random().toString(36).substr(2, 9),
+    if (!db) return;
+    
+    // Simpan ke Firestore
+    addDoc(collection(db, "readings"), {
       value,
       timestamp,
-    };
-    setReadings(prev => [newReading, ...prev].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-  };
-
-  const importReadings = (newReadings: Reading[]) => {
-    setReadings(prev => {
-      // Merge and remove duplicates if needed, then sort
-      const combined = [...newReadings, ...prev];
-      return combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      createdAt: serverTimestamp()
     });
   };
 
-  if (!isLoaded) return null;
+  const importReadings = async (newReadings: Reading[]) => {
+    if (!db) return;
+
+    // Untuk efisiensi prototype, kita tambahkan satu per satu
+    // Idealnya menggunakan writeBatch untuk jumlah besar
+    for (const reading of newReadings) {
+      addDoc(collection(db, "readings"), {
+        value: reading.value,
+        timestamp: reading.timestamp,
+        createdAt: serverTimestamp()
+      });
+    }
+  };
+
+  if (loading && readings.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse">Menghubungkan ke Health Sync...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
