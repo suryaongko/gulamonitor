@@ -13,8 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2 } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, getDocs, where } from "firebase/firestore";
-import { useFirestore, useCollection } from "@/firebase";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, where } from "firebase/firestore";
+import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -22,19 +22,26 @@ export interface Reading {
   id: string;
   value: number;
   timestamp: string;
+  userId?: string;
 }
 
 export function GulaDashboard() {
   const db = useFirestore();
+  const { user } = useUser();
   const [minRange, setMinRange] = useState<number>(70);
   const [maxRange, setMaxRange] = useState<number>(140);
   const [timeFilter, setTimeFilter] = useState<'all' | '24h'>('all');
 
-  // Load readings from Firestore
+  // Load readings from Firestore filtered by user ID
   const readingsQuery = useMemo(() => {
-    if (!db) return null;
-    return query(collection(db, "readings"), orderBy("timestamp", "desc"), limit(200));
-  }, [db]);
+    if (!db || !user) return null;
+    return query(
+      collection(db, "readings"), 
+      where("userId", "==", user.uid),
+      orderBy("timestamp", "desc"), 
+      limit(200)
+    );
+  }, [db, user]);
 
   const { data: readingsData, loading } = useCollection(readingsQuery);
 
@@ -43,7 +50,8 @@ export function GulaDashboard() {
     return readingsData.map(doc => ({
       id: doc.id,
       value: doc.value,
-      timestamp: doc.timestamp
+      timestamp: doc.timestamp,
+      userId: doc.userId
     })) as Reading[];
   }, [readingsData]);
 
@@ -55,19 +63,15 @@ export function GulaDashboard() {
   }, [allReadings, timeFilter]);
 
   const addReading = async (value: number, timestamp: string) => {
-    if (!db) return;
+    if (!db || !user) return;
     
     try {
-      // 1. Simpan ke Firestore
       await addDoc(collection(db, "readings"), {
         value,
         timestamp,
+        userId: user.uid,
         createdAt: serverTimestamp()
       });
-
-      // 2. Simulasi Kirim ke Google Sheets (Opsional - Perlu Apps Script URL)
-      // fetch('URL_APPS_SCRIPT_ANDA', { method: 'POST', body: JSON.stringify({ value, timestamp }) });
-
     } catch (error) {
       console.error(error);
       toast({ title: "Gagal menyimpan data", variant: "destructive" });
@@ -75,21 +79,20 @@ export function GulaDashboard() {
   };
 
   const importReadings = useCallback(async (newReadings: Reading[]) => {
-    if (!db) return;
+    if (!db || !user) return;
 
-    // Filter hanya data yang belum ada di database untuk menghindari duplikasi
-    // Kita gunakan batch untuk performa lebih baik (simulasi sederhana di sini)
     for (const reading of newReadings) {
       const exists = allReadings.some(r => r.timestamp === reading.timestamp && r.value === reading.value);
       if (!exists) {
         await addDoc(collection(db, "readings"), {
           value: reading.value,
           timestamp: reading.timestamp,
+          userId: user.uid,
           createdAt: serverTimestamp()
         });
       }
     }
-  }, [db, allReadings]);
+  }, [db, allReadings, user]);
 
   if (loading && allReadings.length === 0) {
     return (
