@@ -1,9 +1,10 @@
+
 "use client";
 
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Reading } from "./gula-dashboard";
-import { Activity, AlertCircle, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Activity, AlertCircle, TrendingUp, CheckCircle2, ArrowDownCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MetricsGridProps {
@@ -28,10 +29,18 @@ export function MetricsGrid({ readings, minRange, maxRange }: MetricsGridProps) 
     return Math.round((outOfRangeCount / readings.length) * 100);
   };
 
+  // Calculation: Low blood sugar frequency
+  const calculateLowFrequency = () => {
+    if (readings.length === 0) return 0;
+    const lowCount = readings.filter(r => r.value < minRange).length;
+    return lowCount;
+  };
+
   const latestReading = readings[0]?.value || 0;
   const isLatestInRange = latestReading >= minRange && latestReading <= maxRange;
   const hba1c = calculateHbA1c();
   const outOfRangePercent = calculateOutOfRange();
+  const lowCount = calculateLowFrequency();
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -61,19 +70,19 @@ export function MetricsGrid({ readings, minRange, maxRange }: MetricsGridProps) 
 
       <Card className="border-none shadow-sm bg-white/50">
         <CardContent className="p-4 flex items-center gap-4">
-          <div className={cn("p-2 rounded-xl", outOfRangePercent > 20 ? "bg-amber-100 text-amber-600" : "bg-primary/10 text-primary")}>
-            <AlertCircle className="h-6 w-6" />
+          <div className={cn("p-2 rounded-xl", lowCount > 2 ? "bg-orange-100 text-orange-600" : "bg-blue-100 text-blue-600")}>
+            <ArrowDownCircle className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground font-medium">Out of Range</p>
-            <p className="text-2xl font-bold">{outOfRangePercent}%</p>
+            <p className="text-sm text-muted-foreground font-medium">Low Events</p>
+            <p className="text-2xl font-bold">{lowCount} <span className="text-sm font-normal text-muted-foreground">x</span></p>
           </div>
         </CardContent>
       </Card>
 
       <Card className="border-none shadow-sm bg-white/50">
         <CardContent className="p-4 flex items-center gap-4">
-          <div className="p-2 rounded-xl bg-secondary/10 text-secondary">
+          <div className={cn("p-2 rounded-xl", outOfRangePercent > 20 ? "bg-amber-100 text-amber-600" : "bg-primary/10 text-primary")}>
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <div>

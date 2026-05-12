@@ -11,9 +11,11 @@ import { BloodSugarChart } from "./blood-sugar-chart";
 import { GoogleSheetsSync } from "./google-sheets-sync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Clock } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit } from "firebase/firestore";
 import { useFirestore, useCollection } from "@/firebase";
+import { cn } from "@/lib/utils";
 
 export interface Reading {
   id: string;
@@ -25,6 +27,7 @@ export function GulaDashboard() {
   const db = useFirestore();
   const [minRange, setMinRange] = useState<number>(70);
   const [maxRange, setMaxRange] = useState<number>(140);
+  const [timeFilter, setTimeFilter] = useState<'all' | '24h'>('all');
 
   // Menggunakan Firebase Hook untuk mengambil data
   const readingsQuery = useMemo(() => {
@@ -34,7 +37,7 @@ export function GulaDashboard() {
 
   const { data: readingsData, loading } = useCollection(readingsQuery);
 
-  const readings = useMemo(() => {
+  const allReadings = useMemo(() => {
     if (!readingsData) return [];
     return readingsData.map(doc => ({
       id: doc.id,
@@ -42,6 +45,13 @@ export function GulaDashboard() {
       timestamp: doc.timestamp
     })) as Reading[];
   }, [readingsData]);
+
+  const filteredReadings = useMemo(() => {
+    if (timeFilter === 'all') return allReadings;
+    const now = new Date();
+    const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    return allReadings.filter(r => new Date(r.timestamp) >= past24h);
+  }, [allReadings, timeFilter]);
 
   const addReading = (value: number, timestamp: string) => {
     if (!db) return;
@@ -57,8 +67,6 @@ export function GulaDashboard() {
   const importReadings = async (newReadings: Reading[]) => {
     if (!db) return;
 
-    // Untuk efisiensi prototype, kita tambahkan satu per satu
-    // Idealnya menggunakan writeBatch untuk jumlah besar
     for (const reading of newReadings) {
       addDoc(collection(db, "readings"), {
         value: reading.value,
@@ -68,7 +76,7 @@ export function GulaDashboard() {
     }
   };
 
-  if (loading && readings.length === 0) {
+  if (loading && allReadings.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -80,17 +88,40 @@ export function GulaDashboard() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-8 space-y-6">
-        <MetricsGrid readings={readings} minRange={minRange} maxRange={maxRange} />
+        <MetricsGrid readings={filteredReadings} minRange={minRange} maxRange={maxRange} />
         
         <Card className="border-none shadow-md overflow-hidden bg-white/50 backdrop-blur-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-xl font-semibold flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
               Glucose Trends
             </CardTitle>
+            <div className="flex items-center bg-muted/50 p-1 rounded-lg">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn("h-7 px-3 text-xs rounded-md", timeFilter === '24h' && "bg-white shadow-sm")}
+                onClick={() => setTimeFilter('24h')}
+              >
+                24 Hours
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn("h-7 px-3 text-xs rounded-md", timeFilter === 'all' && "bg-white shadow-sm")}
+                onClick={() => setTimeFilter('all')}
+              >
+                All Time
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <BloodSugarChart readings={readings} minRange={minRange} maxRange={maxRange} />
+            <BloodSugarChart readings={filteredReadings} minRange={minRange} maxRange={maxRange} />
+            {timeFilter === '24h' && filteredReadings.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground mt-2">
+                Tidak ada data dalam 24 jam terakhir.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -108,11 +139,11 @@ export function GulaDashboard() {
           </TabsList>
           
           <TabsContent value="readings" className="mt-4">
-            <ReadingsList readings={readings} />
+            <ReadingsList readings={allReadings} />
           </TabsContent>
           
           <TabsContent value="ai" className="mt-4">
-            <AIInsightsCard readings={readings} minRange={minRange} maxRange={maxRange} />
+            <AIInsightsCard readings={allReadings} minRange={minRange} maxRange={maxRange} />
           </TabsContent>
 
           <TabsContent value="sync" className="mt-4">
