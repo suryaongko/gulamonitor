@@ -25,6 +25,30 @@
         "timestamp",
         "userId"
       ]
+    },
+    "AccessRequest": {
+      "title": "Access Request",
+      "description": "A request from a guest to view an owner's data.",
+      "type": "object",
+      "properties": {
+        "requesterEmail": { "type": "string" },
+        "ownerEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "denied"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requesterEmail", "ownerEmail", "status", "timestamp"]
+    },
+    "SharedPermission": {
+      "title": "Shared Permission",
+      "description": "Record of granted access from owner to guest.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string" },
+        "ownerEmail": { "type": "string" },
+        "guestEmail": { "type": "string" },
+        "grantedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "ownerEmail", "guestEmail", "grantedAt"]
     }
   },
   "auth": {
@@ -36,7 +60,15 @@
     "/readings/{readingId}": {
       "schema": "#/entities/Reading",
       "description": "Collection of blood sugar readings",
-      "rules": "allow read, write: if request.auth != null && request.auth.uid == resource.data.userId || request.auth != null && request.resource.data.userId == request.auth.uid"
+      "rules": "allow read: if request.auth != null && (resource.data.userId == request.auth.uid || exists(/databases/$(database)/documents/permissions/$(request.auth.token.email + '_' + resource.data.userId))); allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;"
+    },
+    "/requests/{requestId}": {
+      "schema": "#/entities/AccessRequest",
+      "description": "Guest access requests"
+    },
+    "/permissions/{permissionId}": {
+      "schema": "#/entities/SharedPermission",
+      "description": "Active viewing permissions"
     }
   }
 }
