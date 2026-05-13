@@ -128,7 +128,8 @@ export function GulaDashboard() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-8 space-y-6">
-        <MetricsGrid readings={filteredReadings} minRange={minRange} maxRange={maxRange} />
+        {/* Menggunakan allReadings agar HbA1c tetap konsisten meskipun filter grafik berubah */}
+        <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
         
         <Card className="border-none shadow-md overflow-hidden bg-white/50 backdrop-blur-sm">
           <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
