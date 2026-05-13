@@ -11,9 +11,9 @@ import { BloodSugarChart } from "./blood-sugar-chart";
 import { GoogleSheetsSync } from "./google-sheets-sync";
 import { SharedAccessManager } from "./shared-access-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock, Info, AlertCircle } from "lucide-react";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock, Info } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -117,7 +117,6 @@ export function GulaDashboard() {
     
     if (newItems.length === 0) return;
 
-    // Gunakan batch untuk efisiensi
     const batch = writeBatch(db);
     newItems.forEach(r => {
       const docRef = doc(collection(db, "readings"));
@@ -144,7 +143,7 @@ export function GulaDashboard() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-medium animate-pulse">Menghubungkan layanan...</p>
+        <p className="text-muted-foreground font-bold animate-pulse">Menghubungkan layanan...</p>
       </div>
     );
   }
@@ -153,27 +152,36 @@ export function GulaDashboard() {
 
   if (isGuestWithNoAccess && !loading) {
     return (
-      <div className="max-w-2xl mx-auto py-12 animate-in fade-in slide-in-from-bottom-4">
-        <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
-          <CardContent className="p-12 text-center space-y-6">
-            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
-              <Lock className="h-10 w-10 text-amber-600" />
+      <div className="max-w-2xl mx-auto py-12 animate-in fade-in slide-in-from-bottom-6">
+        <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
+          <CardContent className="p-16 text-center space-y-8">
+            <div className="w-24 h-24 bg-amber-50 rounded-full flex items-center justify-center mx-auto ring-8 ring-amber-50/50">
+              <Lock className="h-12 w-12 text-amber-600" />
             </div>
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold text-slate-900">Akses Terbatas</h2>
-              <p className="text-slate-500 text-lg">
-                Anda belum memiliki izin untuk melihat data gula darah owner.
+            <div className="space-y-3">
+              <h2 className="text-4xl font-black text-slate-900">Akses Terbatas</h2>
+              <p className="text-slate-500 text-lg font-medium">
+                Akun Anda belum memiliki izin untuk melihat data milik owner.
               </p>
             </div>
-            <div className="p-6 bg-slate-50 rounded-2xl text-left border border-slate-100">
-              <h3 className="font-bold flex items-center gap-2 mb-2 text-primary">
-                <Users className="h-5 w-5" /> Cara Mendapatkan Akses:
+            <div className="p-8 bg-slate-50 rounded-[2rem] text-left border border-slate-100 space-y-4">
+              <h3 className="font-black flex items-center gap-3 text-primary uppercase text-sm tracking-widest">
+                <Users className="h-5 w-5" /> Instruksi Akses:
               </h3>
-              <ol className="text-sm text-slate-600 space-y-2 list-decimal list-inside">
-                <li>Gunakan tombol <strong>"Minta Akses Tamu"</strong> di bagian atas.</li>
-                <li>Masukkan email pemilik: <strong>{APP_OWNER_EMAIL}</strong>.</li>
-                <li>Tunggu persetujuan dari pemilik data.</li>
-              </ol>
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">1</div>
+                  <p className="text-slate-600 font-medium leading-relaxed">Gunakan tombol <strong>"Minta Akses"</strong> di bagian header.</p>
+                </div>
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">2</div>
+                  <p className="text-slate-600 font-medium leading-relaxed">Masukkan email pemilik: <strong>{APP_OWNER_EMAIL}</strong>.</p>
+                </div>
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">3</div>
+                  <p className="text-slate-600 font-medium leading-relaxed">Pemilik akan menyetujui permintaan Anda melalui dashboard mereka.</p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -182,17 +190,19 @@ export function GulaDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 font-body">
       {/* Switcher Akses Bersama */}
       {sharedPermissions && sharedPermissions.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 p-4 bg-white border border-primary/10 rounded-2xl shadow-sm">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-2">Data Terhubung:</span>
+        <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
+          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+            <ShieldAlert className="h-3 w-3" /> Sumber Data:
+          </span>
           {isAppOwner && (
             <Button 
               variant={!viewingOwner ? "default" : "outline"} 
               size="sm" 
               onClick={() => setViewingOwner(null)}
-              className="rounded-xl h-9 px-4 font-semibold"
+              className="rounded-xl h-10 px-6 font-bold"
             >
               Data Saya
             </Button>
@@ -203,7 +213,7 @@ export function GulaDashboard() {
               variant={viewingOwner?.uid === perm.ownerUid ? "default" : "outline"} 
               size="sm" 
               onClick={() => setViewingOwner({uid: perm.ownerUid, email: perm.ownerEmail})}
-              className="rounded-xl h-9 px-4 gap-2 font-semibold"
+              className="rounded-xl h-10 px-6 gap-2 font-bold transition-all"
             >
               <Users className="h-4 w-4" /> {perm.ownerEmail.split('@')[0]}
             </Button>
@@ -212,18 +222,18 @@ export function GulaDashboard() {
       )}
 
       {viewingOwner && (
-        <div className="bg-primary text-white p-4 rounded-2xl flex items-center justify-between shadow-lg shadow-primary/20 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <ShieldAlert className="h-5 w-5" />
+        <div className="bg-primary text-white p-6 rounded-[2rem] flex items-center justify-between shadow-2xl shadow-primary/20 animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/20 rounded-2xl">
+              <ShieldAlert className="h-6 w-6" />
             </div>
             <div>
-              <p className="font-bold">Mode Pemantauan</p>
-              <p className="text-sm opacity-90">Melihat data {viewingOwner.email}</p>
+              <p className="font-black text-lg">Mode Pemantauan Aktif</p>
+              <p className="text-sm opacity-90 font-medium">Melihat riwayat kesehatan: {viewingOwner.email}</p>
             </div>
           </div>
           {isAppOwner && (
-            <Button variant="secondary" size="sm" onClick={() => setViewingOwner(null)} className="rounded-xl h-9 px-4 gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setViewingOwner(null)} className="rounded-xl h-10 px-6 gap-2 font-bold">
               <ArrowLeft className="h-4 w-4" /> Kembali ke Data Saya
             </Button>
           )}
@@ -231,21 +241,24 @@ export function GulaDashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className={cn("space-y-8", isAppOwner && !viewingOwner ? "lg:col-span-8" : "lg:col-span-12")}>
+        <div className={cn("space-y-8 transition-all duration-500", isAppOwner && !viewingOwner ? "lg:col-span-8" : "lg:col-span-12")}>
           <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
           
-          <Card className="border-none shadow-xl overflow-hidden bg-white rounded-3xl">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0 px-8 pt-8">
-              <CardTitle className="text-2xl font-bold flex items-center gap-3 text-slate-800">
-                <Activity className="h-6 w-6 text-primary" />
-                Grafik Gula Darah
-              </CardTitle>
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+          <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2.5rem]">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0 px-10 pt-10">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl font-black flex items-center gap-3 text-slate-800">
+                  <Activity className="h-6 w-6 text-primary" />
+                  Visualisasi Tren
+                </CardTitle>
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Gula Darah dalam Waktu</p>
+              </div>
+              <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl">
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('24h')} 
-                  className={cn("h-8 px-4 text-xs font-bold rounded-lg transition-all", timeFilter === '24h' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === '24h' ? "bg-white text-primary shadow-lg" : "text-slate-500")}
                 >
                   24 JAM
                 </Button>
@@ -253,84 +266,86 @@ export function GulaDashboard() {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('all')} 
-                  className={cn("h-8 px-4 text-xs font-bold rounded-lg transition-all", timeFilter === 'all' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === 'all' ? "bg-white text-primary shadow-lg" : "text-slate-500")}
                 >
                   SEMUA
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="px-4 pb-8 min-h-[400px]">
+            <CardContent className="px-6 pb-10 min-h-[450px]">
               <BloodSugarChart readings={filteredReadings} minRange={minRange} maxRange={maxRange} />
             </CardContent>
           </Card>
 
           <Tabs defaultValue="readings" className="w-full">
-            <TabsList className="bg-slate-100 p-1 rounded-2xl h-auto flex-wrap gap-1">
-              <TabsTrigger value="readings" className="flex items-center gap-2 rounded-xl py-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm font-semibold">
+            <TabsList className="bg-slate-100/50 p-1.5 rounded-[1.8rem] h-auto flex-wrap gap-1.5 border border-slate-100">
+              <TabsTrigger value="readings" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
                 <History className="h-4 w-4" /> Riwayat
               </TabsTrigger>
-              <TabsTrigger value="ai" className="flex items-center gap-2 rounded-xl py-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm font-semibold">
-                <Sparkles className="h-4 w-4" /> Analisis AI
+              <TabsTrigger value="ai" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
+                <Sparkles className="h-4 w-4 text-primary" /> Analisis AI
               </TabsTrigger>
               {isAppOwner && !viewingOwner && (
                 <>
-                  <TabsTrigger value="sharing" className="flex items-center gap-2 rounded-xl py-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm font-semibold">
-                    <Users className="h-4 w-4" /> Izin Akses
+                  <TabsTrigger value="sharing" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
+                    <Users className="h-4 w-4" /> Kelola Izin
                   </TabsTrigger>
-                  <TabsTrigger value="sync" className="flex items-center gap-2 rounded-xl py-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm font-semibold">
-                    <FileSpreadsheet className="h-4 w-4" /> Google Sheets
+                  <TabsTrigger value="sync" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
+                    <FileSpreadsheet className="h-4 w-4" /> Sinkronisasi
                   </TabsTrigger>
                 </>
               )}
             </TabsList>
             
-            <TabsContent value="readings" className="mt-6">
-              <ReadingsList readings={allReadings} />
-            </TabsContent>
-            
-            <TabsContent value="ai" className="mt-6">
-              <AIInsightsCard readings={allReadings} minRange={minRange} maxRange={maxRange} />
-            </TabsContent>
+            <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <TabsContent value="readings">
+                <ReadingsList readings={allReadings} />
+              </TabsContent>
+              
+              <TabsContent value="ai">
+                <AIInsightsCard readings={allReadings} minRange={minRange} maxRange={maxRange} />
+              </TabsContent>
 
-            {isAppOwner && !viewingOwner && (
-              <>
-                <TabsContent value="sharing" className="mt-6">
-                  <SharedAccessManager />
-                </TabsContent>
-                <TabsContent value="sync" className="mt-6">
-                  <GoogleSheetsSync 
-                    onImport={handleImportedReadings} 
-                    defaultUrl={GOOGLE_SHEETS_CSV_URL}
-                    autoSync={true} 
-                  />
-                </TabsContent>
-              </>
-            )}
+              {isAppOwner && !viewingOwner && (
+                <>
+                  <TabsContent value="sharing">
+                    <SharedAccessManager />
+                  </TabsContent>
+                  <TabsContent value="sync">
+                    <GoogleSheetsSync 
+                      onImport={handleImportedReadings} 
+                      defaultUrl={GOOGLE_SHEETS_CSV_URL}
+                      autoSync={true} 
+                    />
+                  </TabsContent>
+                </>
+              )}
+            </div>
           </Tabs>
         </div>
 
         {isAppOwner && !viewingOwner && (
-          <div className="lg:col-span-4 space-y-8">
-            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
-              <CardHeader className="px-8 pt-8 pb-4">
-                <CardTitle className="text-xl font-bold flex items-center gap-3 text-primary">
-                  <Activity className="h-6 w-6" /> 
+          <div className="lg:col-span-4 space-y-8 animate-in fade-in slide-in-from-right-4 duration-700">
+            <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-2xl font-black flex items-center gap-3 text-primary">
+                  <Activity className="h-7 w-7" /> 
                   Catat Baru
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-8 pb-8">
+              <CardContent className="px-10 pb-10">
                 <ReadingForm onAdd={addReading} />
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
-              <CardHeader className="px-8 pt-8 pb-4">
-                <CardTitle className="text-xl font-bold flex items-center gap-3 text-primary">
-                  <Settings className="h-6 w-6" /> 
-                  Target Sehat
+            <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-2xl font-black flex items-center gap-3 text-primary">
+                  <Settings className="h-7 w-7" /> 
+                  Konfigurasi
                 </CardTitle>
               </CardHeader>
-              <CardContent className="px-8 pb-8">
+              <CardContent className="px-10 pb-10">
                 <RangeSettings 
                   minRange={minRange} 
                   maxRange={maxRange} 

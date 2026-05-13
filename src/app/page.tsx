@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { GulaDashboard } from "@/components/dashboard/gula-dashboard";
 import { useUser, useAuth, useFirestore } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
-import { Loader2, LogIn, LogOut, Users, Send, ShieldCheck, Eye, Lock } from "lucide-react";
+import { Loader2, LogIn, Send, ShieldCheck, Users, Key, Lock, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -22,18 +22,28 @@ export default function Home() {
   const [requestEmail, setRequestEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [initialAction, setInitialAction] = useState<'login' | 'request' | null>(null);
 
-  const handleLogin = async () => {
+  // Jika user baru login dan sebelumnya memilih 'request', buka dialog secara otomatis
+  useEffect(() => {
+    if (user && initialAction === 'request') {
+      setIsDialogOpen(true);
+      setInitialAction(null);
+    }
+  }, [user, initialAction]);
+
+  const handleAuth = async (action: 'login' | 'request') => {
     if (!auth) {
       toast({ title: "Firebase Belum Siap", description: "Pastikan API Key sudah terpasang di App Hosting.", variant: "destructive" });
       return;
     }
+    setInitialAction(action);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      toast({ title: "Login Gagal", description: error.message, variant: "destructive" });
+      toast({ title: "Gagal Autentikasi", description: error.message, variant: "destructive" });
     }
   };
 
@@ -50,11 +60,10 @@ export default function Home() {
         status: "pending",
         timestamp: new Date().toISOString()
       });
-      toast({ title: "Permintaan Terkirim", description: `Permintaan akses telah dikirim ke ${targetEmail}.` });
+      toast({ title: "Permintaan Terkirim", description: `Permintaan akses telah dikirim ke ${targetEmail}. Tunggu persetujuan untuk melihat data.` });
       setRequestEmail("");
       setIsDialogOpen(false);
     } catch (error) {
-      console.error("Request access error:", error);
       toast({ title: "Gagal mengirim permintaan", variant: "destructive" });
     } finally {
       setIsSending(false);
@@ -68,7 +77,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 font-body">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-muted-foreground animate-pulse font-medium">Menghubungkan ke GulaMonitor...</p>
       </div>
@@ -77,43 +86,68 @@ export default function Home() {
 
   if (!user) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-secondary/5">
-        <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6 text-center md:text-left">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto md:mx-0 shadow-lg shadow-primary/30">
-              <ShieldCheck className="h-10 w-10 text-white" />
+      <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-secondary/5 font-body">
+        <div className="max-w-5xl w-full grid md:grid-cols-2 gap-12 items-center">
+          <div className="space-y-8 text-center md:text-left">
+            <div className="w-20 h-20 bg-primary rounded-3xl flex items-center justify-center mx-auto md:mx-0 shadow-2xl shadow-primary/30">
+              <ShieldCheck className="h-12 w-12 text-white" />
             </div>
-            <h1 className="text-5xl font-extrabold text-slate-900 tracking-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
-            <p className="text-xl text-slate-600 leading-relaxed">
-              Platform pemantauan gula darah aman dengan sistem berbagi akses khusus.
-            </p>
+            <div className="space-y-4">
+              <h1 className="text-6xl font-black text-slate-900 tracking-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
+              <p className="text-xl text-slate-600 leading-relaxed max-w-lg">
+                Sistem pemantauan kesehatan tersinkronisasi. Aman, privat, dan terkendali.
+              </p>
+            </div>
+            
             <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-              <div className="flex items-center gap-2 text-sm text-slate-500 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
-                <Lock className="h-4 w-4 text-green-500" /> Izin Berbasis Email
+              <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-100">
+                <Lock className="h-5 w-5 text-green-500" />
+                <span className="text-sm font-bold text-slate-700">Privasi Terjamin</span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-500 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
-                <Eye className="h-4 w-4 text-primary" /> Pantauan Tamu
+              <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-100">
+                <Users className="h-5 w-5 text-primary" />
+                <span className="text-sm font-bold text-slate-700">Akses Terkelola</span>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <Card className="border-none shadow-2xl rounded-3xl overflow-hidden">
-              <CardHeader className="bg-primary text-white p-8">
-                <CardTitle className="text-2xl">Akses Kesehatan</CardTitle>
-                <CardDescription className="text-primary-foreground/80">Keamanan data Anda adalah prioritas kami</CardDescription>
+          <div className="grid gap-6">
+            <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 backdrop-blur-xl">
+              <CardHeader className="p-8 text-center space-y-2">
+                <CardTitle className="text-3xl font-black text-slate-800">Pilih Akses</CardTitle>
+                <CardDescription className="text-base">Gunakan akun Google Anda untuk masuk</CardDescription>
               </CardHeader>
-              <CardContent className="p-8 space-y-6">
-                <Button onClick={handleLogin} className="w-full gap-3 rounded-2xl h-14 text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
-                  <LogIn className="h-6 w-6" /> Mulai Sekarang
-                </Button>
-                
-                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
-                  <p className="text-xs font-bold text-amber-800 uppercase flex items-center gap-2">
-                    <ShieldCheck className="h-3 w-3" /> Kebijakan Privasi
-                  </p>
-                  <p className="text-[11px] text-amber-700 leading-tight">
-                    Hanya Pemilik Data (surya.ongko@gmail.com) atau Tamu yang telah disetujui yang dapat melihat detail kesehatan di platform ini.
+              <CardContent className="p-8 pt-0 space-y-4">
+                <div className="grid gap-4">
+                  <Button 
+                    onClick={() => handleAuth('login')} 
+                    className="w-full h-16 rounded-2xl text-lg font-bold gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+                  >
+                    <LogIn className="h-6 w-6" /> Login (Owner / Guest)
+                  </Button>
+                  
+                  <div className="relative py-2">
+                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100" /></div>
+                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-4 text-muted-foreground font-bold">atau</span></div>
+                  </div>
+
+                  <Button 
+                    variant="outline"
+                    onClick={() => handleAuth('request')} 
+                    className="w-full h-16 rounded-2xl text-lg font-bold gap-3 border-2 border-primary/10 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                  >
+                    <Key className="h-6 w-6 text-primary" /> Minta Akses Baru
+                  </Button>
+                </div>
+
+                <div className="mt-8 p-6 bg-slate-50 rounded-3xl space-y-3">
+                  <div className="flex items-center gap-2 text-primary">
+                    <ShieldCheck className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Informasi Keamanan</span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    Owner: <strong>surya.ongko@gmail.com</strong>. <br/>
+                    Tamu harus melakukan login Google terlebih dahulu untuk mengirimkan permintaan akses yang valid.
                   </p>
                 </div>
               </CardContent>
@@ -125,15 +159,15 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen p-4 md:p-8 bg-slate-50/50">
+    <main className="min-h-screen p-4 md:p-8 bg-slate-50/50 font-body">
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
-            <h1 className="text-3xl font-extrabold text-primary tracking-tight flex items-center gap-2">
+            <h1 className="text-3xl font-black text-primary tracking-tight flex items-center gap-3">
               <ShieldCheck className="h-8 w-8" /> GulaMonitor
             </h1>
-            <p className="text-muted-foreground font-medium flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <p className="text-muted-foreground font-bold flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               Aktif: {user.displayName || user.email}
             </p>
           </div>
@@ -141,20 +175,20 @@ export default function Home() {
           <div className="flex flex-wrap items-center gap-3">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="rounded-xl gap-2 h-11 px-6 border-primary/20 hover:bg-primary/5 font-semibold">
-                  <Users className="h-4 w-4" /> Minta Akses Tamu
+                <Button variant="outline" className="rounded-xl gap-2 h-12 px-6 border-primary/20 hover:bg-primary/5 font-bold">
+                  <Key className="h-4 w-4" /> Minta Akses
                 </Button>
               </DialogTrigger>
-              <DialogContent className="rounded-2xl sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-bold text-primary">Minta Akses Tamu</DialogTitle>
-                  <DialogDescription className="text-base">
-                    Gunakan fitur ini untuk memantau data owner.
+              <DialogContent className="rounded-[2rem] sm:max-w-md p-8">
+                <DialogHeader className="space-y-3">
+                  <DialogTitle className="text-3xl font-black text-primary">Kirim Permintaan</DialogTitle>
+                  <DialogDescription className="text-base font-medium">
+                    Masukkan email pemilik data yang ingin Anda pantau.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-6">
                   <div className="space-y-3">
-                    <Label htmlFor="owner-email" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                    <Label htmlFor="owner-email" className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                       Email Pemilik Data
                     </Label>
                     <div className="flex gap-2">
@@ -163,26 +197,23 @@ export default function Home() {
                         placeholder="surya.ongko@gmail.com" 
                         value={requestEmail}
                         onChange={(e) => setRequestEmail(e.target.value)}
-                        className="rounded-xl h-12 text-lg"
+                        className="rounded-2xl h-14 text-lg font-medium bg-slate-50 border-none focus:ring-2 focus:ring-primary"
                       />
                       <Button 
                         onClick={handleRequestAccess} 
                         disabled={isSending || !requestEmail} 
-                        className="rounded-xl h-12 w-14"
+                        className="rounded-2xl h-14 w-16 shadow-lg shadow-primary/20"
                       >
                         {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      *Akses akan aktif setelah Pemilik Data menyetujui di dashboard mereka.
-                    </p>
                   </div>
                 </div>
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" onClick={handleLogout} className="rounded-xl gap-2 h-11 px-6 border-red-100 text-red-600 hover:bg-red-50 font-semibold">
-              <LogOut className="h-4 w-4" /> Keluar
+            <Button variant="outline" onClick={handleLogout} className="rounded-xl gap-2 h-12 px-6 border-red-100 text-red-600 hover:bg-red-50 font-bold">
+              <ArrowRight className="h-4 w-4" /> Keluar
             </Button>
           </div>
         </header>
