@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ReadingsListProps {
   readings: Reading[];
@@ -104,5 +105,3 @@ export function ReadingsList({ readings }: ReadingsListProps) {
     </div>
   );
 }
-
-import { cn } from "@/lib/utils";

@@ -1,7 +1,7 @@
 
 # GulaMonitor - Health Sync (Berlin Time)
 
-Aplikasi pemantauan gula darah pribadi yang tersinkronisasi secara instan dengan Google Sheets.
+Aplikasi pemantauan gula darah pribadi yang tersinkronisasi secara instan dengan Google Sheets menggunakan zona waktu Berlin.
 
 ---
 
@@ -58,4 +58,4 @@ function doPost(e) {
 
 ## 🛡️ HAK AKSES
 - **Owner (surya.ongko@gmail.com)**: Memiliki akses penuh (Input data, Sync, Sharing).
-- **Guest**: Hanya bisa melihat data owner jika sudah disetujui.
+- **Guest**: Hanya bisa melihat data owner jika sudah disetujui (Mode Pemantauan).

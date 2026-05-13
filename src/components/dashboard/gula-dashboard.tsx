@@ -26,7 +26,7 @@ export interface Reading {
   userId?: string;
 }
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxYQ9YMryTvSkYuSAgzz2WevurAZ47gHVwVfXfh5U0Y_lSk5A9ecG2_GdSO15tV-k0E/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmNWxysmsd30pOSPhRRdnuj5Lz8kags9UHVQxV7-i0A4OpNOcYagGaUQMpbzdW6gny/exec";
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
 const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
 
@@ -41,6 +41,7 @@ export function GulaDashboard() {
   const userEmail = user?.email?.toLowerCase() || "";
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
+  // Query for permissions granted to current logged in user
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -48,6 +49,7 @@ export function GulaDashboard() {
   
   const { data: sharedPermissions } = useCollection(sharedAccessQuery);
 
+  // Determine whose data we are currently viewing
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
   const readingsQuery = useMemo(() => {
@@ -84,6 +86,7 @@ export function GulaDashboard() {
       createdAt: serverTimestamp()
     };
 
+    // Save to Firestore
     addDoc(collection(db, "readings"), payload)
       .catch(async () => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -93,6 +96,7 @@ export function GulaDashboard() {
         }));
       });
 
+    // Send to Google Sheets instantly
     if (APPS_SCRIPT_URL) {
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
@@ -107,7 +111,7 @@ export function GulaDashboard() {
       }).catch(err => console.warn("Sync Warning:", err));
     }
 
-    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets." });
+    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets (Waktu Berlin)." });
   };
 
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
@@ -130,7 +134,7 @@ export function GulaDashboard() {
     });
 
     batch.commit().then(() => {
-      toast({ title: "Auto-Sync Berhasil", description: `${newItems.length} data baru ditarik.` });
+      toast({ title: "Sinkronisasi Berhasil", description: `${newItems.length} data baru ditarik dari Google Sheets.` });
     }).catch(async () => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: 'readings',
@@ -139,6 +143,7 @@ export function GulaDashboard() {
     });
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
+  // Auto-sync for the owner on load and every 30s
   useEffect(() => {
     if (!isAppOwner || viewingOwner || !GOOGLE_SHEETS_CSV_URL) return;
 
@@ -157,10 +162,14 @@ export function GulaDashboard() {
           
           let dateObj: Date;
           if (timestampStr.includes('/')) {
-            const [dmy, hms] = timestampStr.split(' ');
-            const [d, m, y] = dmy.split('/');
-            const [h, min, s] = (hms || "00:00:00").split(':');
-            dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d), parseInt(h), parseInt(min), parseInt(s || "0"));
+            const parts = timestampStr.split(/[\/\-\s:]/);
+            const d = parseInt(parts[0]);
+            const m = parseInt(parts[1]) - 1;
+            const y = parts[2].length === 2 ? 2000 + parseInt(parts[2]) : parseInt(parts[2]);
+            const h = parseInt(parts[3] || "0");
+            const min = parseInt(parts[4] || "0");
+            const s = parseInt(parts[5] || "0");
+            dateObj = new Date(y, m, d, h, min, s);
           } else {
             dateObj = new Date(timestampStr);
           }
@@ -213,6 +222,7 @@ export function GulaDashboard() {
 
   return (
     <div className="space-y-8 font-body">
+      {/* Access Switcher Bar */}
       {((sharedPermissions && sharedPermissions.length > 0) || (isAppOwner && sharedPermissions && sharedPermissions.length > 0)) && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
@@ -243,6 +253,7 @@ export function GulaDashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Main Content Area */}
         <div className={cn("space-y-8 transition-all duration-500", (isAppOwner && !viewingOwner) ? "lg:col-span-8" : "lg:col-span-12")}>
           <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
           
@@ -323,6 +334,7 @@ export function GulaDashboard() {
           </Tabs>
         </div>
 
+        {/* Sidebar for Input (Owner Only) */}
         {isAppOwner && !viewingOwner && (
           <div className="lg:col-span-4 space-y-8">
             <Card className="border-none shadow-2xl bg-white rounded-[2.5rem]">
