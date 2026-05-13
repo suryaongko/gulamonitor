@@ -6,10 +6,11 @@ import { useUser, useAuth, useFirestore } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
-import { Loader2, LogIn, LogOut, Users, Send } from "lucide-react";
+import { Loader2, LogIn, LogOut, Users, Send, ShieldCheck, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -62,30 +63,60 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse">Menghubungkan ke layanan kesehatan...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Menghubungkan ke GulaMonitor...</p>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-primary/5 to-background">
-        <div className="max-w-md w-full text-center space-y-8 bg-white p-10 rounded-3xl shadow-2xl border border-primary/10">
-          <div className="space-y-4">
-            <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto">
-              <Users className="h-10 w-10 text-primary" />
+      <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-secondary/5">
+        <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center">
+          <div className="space-y-6 text-center md:text-left">
+            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto md:mx-0 shadow-lg shadow-primary/30">
+              <ShieldCheck className="h-10 w-10 text-white" />
             </div>
-            <h1 className="text-4xl font-bold text-primary tracking-tight">GulaMonitor</h1>
-            <p className="text-muted-foreground">Pantau gula darah Anda dan keluarga secara aman dan terintegrasi.</p>
+            <h1 className="text-5xl font-extrabold text-slate-900 tracking-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
+            <p className="text-xl text-slate-600 leading-relaxed">
+              Platform pemantauan gula darah yang aman, tersinkronisasi dengan Google Sheets, dan mendukung akses berbagi keluarga.
+            </p>
           </div>
-          <Button onClick={handleLogin} className="w-full gap-3 rounded-2xl h-14 text-lg font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">
-            <LogIn className="h-6 w-6" /> Masuk dengan Google
-          </Button>
-          <p className="text-xs text-muted-foreground px-4 leading-relaxed">
-            Aplikasi ini memerlukan izin Google untuk mengamankan data kesehatan pribadi Anda.
-          </p>
+
+          <div className="space-y-4">
+            <Card className="border-none shadow-2xl rounded-3xl overflow-hidden">
+              <CardHeader className="bg-primary text-white p-8">
+                <CardTitle className="text-2xl">Selamat Datang</CardTitle>
+                <CardDescription className="text-primary-foreground/80">Silakan masuk untuk melanjutkan</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                <div className="grid gap-4">
+                  <Button onClick={handleLogin} className="w-full gap-3 rounded-2xl h-14 text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
+                    <LogIn className="h-6 w-6" /> Masuk sebagai Pemilik / Tamu
+                  </Button>
+                </div>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t"></span></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-muted-foreground">Informasi Akses</span></div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-50 rounded-2xl text-center space-y-2">
+                    <Users className="h-6 w-6 mx-auto text-primary" />
+                    <p className="text-xs font-bold text-slate-700">Owner</p>
+                    <p className="text-[10px] text-muted-foreground">Kelola data pribadi Anda</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl text-center space-y-2">
+                    <Eye className="h-6 w-6 mx-auto text-secondary" />
+                    <p className="text-xs font-bold text-slate-700">Guest</p>
+                    <p className="text-[10px] text-muted-foreground">Pantau data keluarga</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
     );
@@ -97,9 +128,9 @@ export default function Home() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
             <h1 className="text-3xl font-extrabold text-primary tracking-tight flex items-center gap-2">
-              <Users className="h-8 w-8" /> GulaMonitor
+              <ShieldCheck className="h-8 w-8" /> GulaMonitor
             </h1>
-            <p className="text-muted-foreground font-medium">Selamat datang, {user.displayName}</p>
+            <p className="text-muted-foreground font-medium">Aktif: {user.displayName} ({user.email})</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">

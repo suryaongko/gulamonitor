@@ -1,12 +1,11 @@
-
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, Zap, Send } from "lucide-react";
+import { FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, Zap } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
 import { Switch } from "@/components/ui/switch";
@@ -14,13 +13,14 @@ import { Switch } from "@/components/ui/switch";
 interface GoogleSheetsSyncProps {
   onImport: (readings: Reading[]) => void;
   defaultUrl?: string;
+  autoSync?: boolean;
 }
 
-export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps) {
-  const [url, setUrl] = useState(defaultUrl || "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv");
+export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSync = true }: GoogleSheetsSyncProps) {
+  const [url, setUrl] = useState(defaultUrl || "");
   const [isLoading, setIsLoading] = useState(false);
-  const [autoSync, setAutoSync] = useState(true);
-  const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error', message: string }>({ type: 'idle', message: "" });
+  const [autoSync, setAutoSync] = useState(initialAutoSync);
+  const hasSyncedOnMount = useRef(false);
 
   const parseIndonesianDate = (dateStr: string) => {
     if (!dateStr) return null;
@@ -39,8 +39,8 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
   };
 
   const handleSync = useCallback(async (isSilent = false) => {
-    if (!url.includes("docs.google.com/spreadsheets") || !url.includes("output=csv")) {
-      if (!isSilent) toast({ title: "URL Tidak Valid", variant: "destructive" });
+    if (!url || !url.includes("docs.google.com/spreadsheets") || !url.includes("output=csv")) {
+      if (!isSilent && url) toast({ title: "URL Tidak Valid", variant: "destructive" });
       return;
     }
 
@@ -48,7 +48,7 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
     
     try {
       const response = await fetch(url);
-      if (!response.ok) throw new Error("Gagal mengambil data.");
+      if (!response.ok) throw new Error("Gagal mengambil data dari Google Sheets.");
       
       const csvText = await response.text();
       const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
@@ -77,23 +77,23 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
       if (importedReadings.length > 0) {
         onImport(importedReadings);
         if (!isSilent) {
-          setStatus({ type: 'success', message: `Sinkronisasi berhasil: ${importedReadings.length} data.` });
           toast({ title: "Sinkronisasi Berhasil", description: `${importedReadings.length} data diperbarui.` });
         }
       }
     } catch (error: any) {
       if (!isSilent) {
-        setStatus({ type: 'error', message: error.message });
-        toast({ title: "Sinkronisasi Gagal", variant: "destructive" });
+        toast({ title: "Sinkronisasi Gagal", description: error.message, variant: "destructive" });
       }
     } finally {
       if (!isSilent) setIsLoading(false);
     }
   }, [url, onImport]);
 
+  // Immediate sync on mount if autoSync is on
   useEffect(() => {
-    if (autoSync && url) {
+    if (autoSync && url && !hasSyncedOnMount.current) {
       handleSync(true);
+      hasSyncedOnMount.current = true;
     }
   }, [autoSync, url, handleSync]);
 
@@ -103,7 +103,7 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-green-600" />
-            Google Sheets Sync
+            Pengaturan Sinkronisasi
           </CardTitle>
           <div className="flex items-center gap-2">
             <Label htmlFor="auto-sync" className="text-xs text-muted-foreground">Auto-Sync</Label>
@@ -115,16 +115,16 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
           </div>
         </div>
         <CardDescription>
-          Data ditarik otomatis dari Sheets, dan dikirim otomatis ke Sheets saat Anda menambah data baru.
+          Data ditarik otomatis dari Google Sheets setiap kali Anda membuka aplikasi.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="gs-url">Link CSV "Publish to Web" (Input)</Label>
+          <Label htmlFor="gs-url">Link CSV "Publish to Web"</Label>
           <div className="flex flex-col md:flex-row gap-2">
             <Input 
               id="gs-url"
-              placeholder="Tempel link CSV di sini..." 
+              placeholder="Tempel link CSV dari Google Sheets..." 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="rounded-xl flex-1"
@@ -135,7 +135,7 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
               className="rounded-xl gap-2"
             >
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Sync Manual
+              Sync Sekarang
             </Button>
           </div>
         </div>
@@ -143,23 +143,15 @@ export function GoogleSheetsSync({ onImport, defaultUrl }: GoogleSheetsSyncProps
         <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-emerald-100 rounded-full text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
+              <Zap className="h-4 w-4 fill-emerald-600" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-bold text-emerald-800 flex items-center gap-2">
-                Sinkronisasi Dua Arah Aktif
-                <Zap className="h-3 w-3 fill-emerald-600" />
-              </p>
+              <p className="text-sm font-bold text-emerald-800">Sinkronisasi Cerdas</p>
               <p className="text-xs text-emerald-700 leading-relaxed">
-                URL Web App Google Apps Script telah terpasang. Setiap kali Anda menambah data di HP, baris baru akan muncul di Google Sheets Anda secara otomatis.
+                Aplikasi akan membandingkan data yang ada di Sheets dengan database internal untuk memastikan tidak ada data ganda.
               </p>
             </div>
           </div>
-        </div>
-
-        <div className="text-[10px] text-muted-foreground break-all p-2 bg-muted/30 rounded-lg">
-          <p className="font-semibold mb-1 uppercase">Outgoing Web App Endpoint:</p>
-          https://script.google.com/macros/s/.../exec
         </div>
       </CardContent>
     </Card>

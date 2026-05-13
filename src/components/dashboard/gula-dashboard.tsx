@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, getDocs } from "firebase/firestore";
 import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -44,7 +44,7 @@ export function GulaDashboard() {
   
   const { data: sharedPermissions } = useCollection(sharedAccessQuery);
 
-  // Tentukan UID data mana yang akan ditampilkan (Milik sendiri atau milik orang lain)
+  // Tentukan UID data mana yang akan ditampilkan
   const currentUid = viewingOwner ? viewingOwner.uid : user?.uid;
 
   // Load readings berdasarkan UID terpilih
@@ -105,23 +105,30 @@ export function GulaDashboard() {
     }
   };
 
-  // Auto-sync dari Google Sheets (Hanya untuk data sendiri)
-  const handleAutoSyncFromSheets = useCallback(async () => {
-    if (!user || !db || viewingOwner) return;
-    try {
-      const response = await fetch(GOOGLE_SHEETS_CSV_URL);
-      if (!response.ok) return;
-      // Sinkronisasi otomatis di latar belakang sudah diatur oleh komponen GoogleSheetsSync
-    } catch (error) {
-      console.error("Auto-sync background task failed");
+  const handleImportedReadings = useCallback(async (imported: Reading[]) => {
+    if (!db || !user || viewingOwner) return;
+    
+    // Check for existing readings to avoid duplicates
+    // We'll just check timestamps for this simple implementation
+    const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
+    
+    let addedCount = 0;
+    for (const r of imported) {
+      if (!existingTimestamps.has(r.timestamp)) {
+        await addDoc(collection(db, "readings"), {
+          value: r.value,
+          timestamp: r.timestamp,
+          userId: user.uid,
+          createdAt: serverTimestamp()
+        });
+        addedCount++;
+      }
     }
-  }, [user, db, viewingOwner]);
 
-  useEffect(() => {
-    if (user && db && !loading && !viewingOwner) {
-      handleAutoSyncFromSheets();
+    if (addedCount > 0) {
+      toast({ title: "Sync Otomatis Berhasil", description: `${addedCount} data baru disinkronkan dari Google Sheets.` });
     }
-  }, [user, db, loading, handleAutoSyncFromSheets, viewingOwner]);
+  }, [db, user, viewingOwner, allReadings]);
 
   if (loading && allReadings.length === 0) {
     return (
@@ -161,14 +168,14 @@ export function GulaDashboard() {
       )}
 
       {viewingOwner && (
-        <div className="bg-blue-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-lg shadow-blue-200">
+        <div className="bg-blue-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-lg shadow-blue-200 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-lg">
               <ShieldAlert className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-bold">Mode Pemantauan</p>
-              <p className="text-sm opacity-90">Melihat data {viewingOwner.email} (Lihat Saja)</p>
+              <p className="font-bold">Mode Pemantauan Tamu</p>
+              <p className="text-sm opacity-90">Melihat data {viewingOwner.email} (Akses Baca Saja)</p>
             </div>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setViewingOwner(null)} className="rounded-xl h-9 px-4 gap-2">
@@ -181,11 +188,11 @@ export function GulaDashboard() {
         <div className="lg:col-span-8 space-y-8">
           <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
           
-          <Card className="border-none shadow-xl overflow-hidden bg-white/80 backdrop-blur-md rounded-3xl">
+          <Card className="border-none shadow-xl overflow-hidden bg-white rounded-3xl">
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0 px-8 pt-8">
               <CardTitle className="text-2xl font-bold flex items-center gap-3 text-slate-800">
                 <Activity className="h-6 w-6 text-primary" />
-                Tren Glukosa
+                Grafik Gula Darah
               </CardTitle>
               <div className="flex items-center bg-slate-100 p-1.5 rounded-xl">
                 <Button 
@@ -206,7 +213,7 @@ export function GulaDashboard() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="px-8 pb-8">
+            <CardContent className="px-8 pb-8 min-h-[350px]">
               <BloodSugarChart readings={filteredReadings} minRange={minRange} maxRange={maxRange} />
             </CardContent>
           </Card>
@@ -245,7 +252,11 @@ export function GulaDashboard() {
                   <SharedAccessManager />
                 </TabsContent>
                 <TabsContent value="sync" className="mt-6">
-                  <GoogleSheetsSync onImport={handleAutoSyncFromSheets} />
+                  <GoogleSheetsSync 
+                    onImport={handleImportedReadings} 
+                    defaultUrl={GOOGLE_SHEETS_CSV_URL}
+                    autoSync={true} 
+                  />
                 </TabsContent>
               </>
             )}
@@ -254,14 +265,32 @@ export function GulaDashboard() {
 
         {!viewingOwner && (
           <div className="lg:col-span-4 space-y-8">
-            <Card className="border-none shadow-xl bg-white/90 rounded-3xl p-2">
-              <CardHeader className="px-6 pt-6"><CardTitle className="text-xl font-bold flex items-center gap-3 text-primary"><Activity className="h-6 w-6" /> Catat Baru</CardTitle></CardHeader>
-              <CardContent className="px-6 pb-6"><ReadingForm onAdd={addReading} /></CardContent>
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <CardHeader className="px-8 pt-8 pb-4">
+                <CardTitle className="text-xl font-bold flex items-center gap-3 text-primary">
+                  <Activity className="h-6 w-6" /> 
+                  Catat Baru
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-8 pb-8">
+                <ReadingForm onAdd={addReading} />
+              </CardContent>
             </Card>
 
-            <Card className="border-none shadow-xl bg-white/90 rounded-3xl p-2">
-              <CardHeader className="px-6 pt-6"><CardTitle className="text-xl font-bold flex items-center gap-3 text-primary"><Settings className="h-6 w-6" /> Target Sehat</CardTitle></CardHeader>
-              <CardContent className="px-6 pb-6"><RangeSettings minRange={minRange} maxRange={maxRange} onSave={(min, max) => { setMinRange(min); setMaxRange(max); }} /></CardContent>
+            <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+              <CardHeader className="px-8 pt-8 pb-4">
+                <CardTitle className="text-xl font-bold flex items-center gap-3 text-primary">
+                  <Settings className="h-6 w-6" /> 
+                  Target Sehat
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-8 pb-8">
+                <RangeSettings 
+                  minRange={minRange} 
+                  maxRange={maxRange} 
+                  onSave={(min, max) => { setMinRange(min); setMaxRange(max); }} 
+                />
+              </CardContent>
             </Card>
           </div>
         )}
