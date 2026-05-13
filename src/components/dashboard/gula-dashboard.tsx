@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -112,7 +111,7 @@ export function GulaDashboard() {
     try {
       const response = await fetch(GOOGLE_SHEETS_CSV_URL);
       if (!response.ok) return;
-      // Sinkronisasi otomatis di latar belakang
+      // Sinkronisasi otomatis di latar belakang sudah diatur oleh komponen GoogleSheetsSync
     } catch (error) {
       console.error("Auto-sync background task failed");
     }

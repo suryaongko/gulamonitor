@@ -1,4 +1,3 @@
-
 # GulaMonitor - Health Sync
 
 Aplikasi pemantauan gula darah pribadi yang tersinkronisasi dengan Google Sheets dan diamankan dengan Firebase Auth.
