@@ -12,20 +12,30 @@ Agar data dari aplikasi langsung terupdate di Google Sheets, Anda wajib memasang
 ### 1. Di Google Sheets Anda
 1. Buka file Google Sheets Anda.
 2. Klik menu **Extensions** -> **Apps Script**.
-3. Hapus semua kode yang ada, dan tempel kode berikut:
+3. Hapus semua kode yang ada, dan tempel kode berikut (sudah dioptimalkan):
 
 ```javascript
 function doPost(e) {
   try {
+    // Pastikan ada data yang masuk
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput("Error: No data received").setMimeType(ContentService.MimeType.TEXT);
+    }
+
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
     var data = JSON.parse(e.postData.contents);
     
+    // Validasi data minimal
+    if (!data.value || !data.timestamp) {
+      return ContentService.createTextOutput("Error: Missing fields").setMimeType(ContentService.MimeType.TEXT);
+    }
+
     // Format Tanggal (GMT+7)
     var timestamp = new Date(data.timestamp);
     var formattedDate = Utilities.formatDate(timestamp, "GMT+7", "dd/MM/yyyy HH:mm:ss");
     
-    // Masukkan baris baru: Tanggal, Nilai
-    sheet.appendRow([formattedDate, data.value]);
+    // Masukkan baris baru: Tanggal, Nilai, Email (Opsional)
+    sheet.appendRow([formattedDate, data.value, data.userEmail || "Unknown"]);
     
     return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
   } catch (err) {
@@ -35,25 +45,25 @@ function doPost(e) {
 ```
 
 4. Klik ikon **Save** (beri nama "GulaMonitorSync").
-5. **JANGAN KLIK RUN**. Klik tombol **Deploy** -> **New Deployment**.
-6. Pilih type: **Web App**.
-7. Description: "Sync dari GulaMonitor App".
-8. Execute as: **Me** (Email Anda).
-9. Who has access: **Anyone** (Ini sangat penting agar aplikasi bisa mengirim data tanpa error).
-10. Klik **Deploy**. Jika muncul permintaan izin, klik **Authorize Access** dan pilih akun Google Anda.
-11. Salin **Web App URL** yang muncul. Tempel URL tersebut ke variabel `APPS_SCRIPT_URL` di file `src/components/dashboard/gula-dashboard.tsx`.
+5. **PENTING: JANGAN KLIK RUN**. Menekan tombol Run akan menyebabkan error karena tidak ada data kiriman.
+6. Klik tombol **Deploy** -> **New Deployment**.
+7. Pilih type: **Web App**.
+8. Description: "Sync v2".
+9. Execute as: **Me** (Email Anda).
+10. Who has access: **Anyone** (Ini wajib agar aplikasi bisa mengirim data).
+11. Klik **Deploy**. Salin **Web App URL** yang muncul.
+12. **Buka file `src/components/dashboard/gula-dashboard.tsx`** dan tempel URL tersebut ke variabel `APPS_SCRIPT_URL`.
 
 ### 2. Publish CSV (Agar Aplikasi Bisa Membaca Data)
 1. Di Google Sheets, klik **File** -> **Share** -> **Publish to web**.
-2. Pilih **Whole Document** atau **Sheet1**, lalu pilih format **Comma-separated values (.csv)**.
-3. Klik **Publish**. Salin link yang muncul dan tempel ke `GOOGLE_SHEETS_CSV_URL` di aplikasi.
-4. **Catatan**: Google Sheets memiliki delay sekitar 5 menit untuk memperbarui link CSV ini. Data baru yang Anda masukkan akan muncul di aplikasi setelah beberapa menit.
+2. Pilih format **Comma-separated values (.csv)**.
+3. Klik **Publish**. Salin link yang muncul dan tempel ke `GOOGLE_SHEETS_CSV_URL` di dashboard aplikasi.
 
 ---
 
 ## 🔑 SETUP API KEY (Firebase)
 
-Jika login gagal, masukkan config di Dashboard App Hosting:
+Jika login gagal, masukkan config di Dashboard App Hosting Anda:
 1. `NEXT_PUBLIC_FIREBASE_API_KEY`
 2. `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
 3. `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
