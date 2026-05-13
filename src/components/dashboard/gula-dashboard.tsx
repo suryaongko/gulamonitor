@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { ReadingForm } from "./reading-form";
 import { RangeSettings } from "./range-settings";
 import { MetricsGrid } from "./metrics-grid";
@@ -26,6 +26,7 @@ export interface Reading {
 }
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzp3u7CYidcQ54ILprqUhvG6SdUijycxcYM9AUxcAPsU-7XYEqXOIaeg2VJwCM6PCTg/exec";
+const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
 
 export function GulaDashboard() {
   const db = useFirestore();
@@ -33,6 +34,7 @@ export function GulaDashboard() {
   const [minRange, setMinRange] = useState<number>(70);
   const [maxRange, setMaxRange] = useState<number>(140);
   const [timeFilter, setTimeFilter] = useState<'all' | '24h'>('all');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Load readings from Firestore filtered by user ID
   const readingsQuery = useMemo(() => {
@@ -41,7 +43,7 @@ export function GulaDashboard() {
       collection(db, "readings"), 
       where("userId", "==", user.uid),
       orderBy("timestamp", "desc"), 
-      limit(200)
+      limit(500)
     );
   }, [db, user]);
 
@@ -68,7 +70,6 @@ export function GulaDashboard() {
     if (!db || !user) return;
     
     try {
-      // 1. Simpan ke Firestore
       await addDoc(collection(db, "readings"), {
         value,
         timestamp,
@@ -76,23 +77,16 @@ export function GulaDashboard() {
         createdAt: serverTimestamp()
       });
 
-      // 2. Kirim ke Google Sheets secara otomatis (Background sync)
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
         mode: "no-cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          value, 
-          timestamp,
-          userEmail: user.email 
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value, timestamp, userEmail: user.email }),
       }).catch(err => console.error("Apps Script Error:", err));
 
       toast({ 
         title: "Data Disimpan", 
-        description: "Data telah disimpan ke database dan sedang dikirim ke Google Sheets." 
+        description: "Data telah disimpan dan disinkronkan ke Google Sheets." 
       });
     } catch (error) {
       console.error(error);
@@ -100,8 +94,25 @@ export function GulaDashboard() {
     }
   };
 
+  const parseIndonesianDate = (dateStr: string) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split(/[\/\-\s:]/);
+    if (parts.length >= 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parts[2].length === 2 ? 2000 + parseInt(parts[2]) : parseInt(parts[2]);
+      const hour = parts[3] ? parseInt(parts[3]) : 0;
+      const min = parts[4] ? parseInt(parts[4]) : 0;
+      const d = new Date(year, month, day, hour, min);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const fallback = new Date(dateStr);
+    return isNaN(fallback.getTime()) ? null : fallback;
+  };
+
   const importReadings = useCallback(async (newReadings: Reading[]) => {
     if (!db || !user) return;
+    let importedCount = 0;
 
     for (const reading of newReadings) {
       const exists = allReadings.some(r => r.timestamp === reading.timestamp && r.value === reading.value);
@@ -112,9 +123,62 @@ export function GulaDashboard() {
           userId: user.uid,
           createdAt: serverTimestamp()
         });
+        importedCount++;
       }
     }
+    return importedCount;
   }, [db, allReadings, user]);
+
+  const handleAutoSync = useCallback(async () => {
+    if (!user || !db) return;
+    setIsSyncing(true);
+    try {
+      const response = await fetch(GOOGLE_SHEETS_CSV_URL);
+      if (!response.ok) throw new Error("Gagal mengambil data Sheets.");
+      
+      const csvText = await response.text();
+      const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
+      if (rows.length <= 1) return;
+
+      const dataRows = rows.slice(1);
+      const importedFromSheets: Reading[] = dataRows
+        .map((row) => {
+          const columns = row.includes(";") ? row.split(";") : row.split(",");
+          const timestampStr = columns[0]?.trim();
+          const valueStr = columns[1]?.trim();
+          if (!timestampStr || !valueStr) return null;
+
+          const value = parseFloat(valueStr.replace(",", "."));
+          const dateObj = parseIndonesianDate(timestampStr);
+          if (!dateObj || isNaN(value)) return null;
+
+          return {
+            id: dateObj.getTime().toString(), 
+            value: value,
+            timestamp: dateObj.toISOString(),
+          };
+        })
+        .filter((r): r is Reading => r !== null);
+
+      if (importedFromSheets.length > 0) {
+        const count = await importReadings(importedFromSheets);
+        if (count && count > 0) {
+          toast({ title: "Sinkronisasi Otomatis", description: `${count} data baru dari Sheets telah ditambahkan.` });
+        }
+      }
+    } catch (error) {
+      console.error("Auto-sync error:", error);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, db, importReadings]);
+
+  // Efek untuk menjalankan sinkronisasi otomatis saat pertama kali masuk dashboard
+  useEffect(() => {
+    if (user && db && !loading) {
+      handleAutoSync();
+    }
+  }, [user, db, loading, handleAutoSync]);
 
   if (loading && allReadings.length === 0) {
     return (
@@ -128,7 +192,6 @@ export function GulaDashboard() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-8 space-y-6">
-        {/* Menggunakan allReadings agar HbA1c tetap konsisten meskipun filter grafik berubah */}
         <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
         
         <Card className="border-none shadow-md overflow-hidden bg-white/50 backdrop-blur-sm">
@@ -136,6 +199,7 @@ export function GulaDashboard() {
             <CardTitle className="text-xl font-semibold flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
               Glucose Trends
+              {isSyncing && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-2" />}
             </CardTitle>
             <div className="flex items-center bg-muted/50 p-1 rounded-lg">
               <Button 
@@ -170,7 +234,7 @@ export function GulaDashboard() {
               <Sparkles className="h-4 w-4" /> AI Insights
             </TabsTrigger>
             <TabsTrigger value="sync" className="flex items-center gap-2 rounded-lg">
-              <FileSpreadsheet className="h-4 w-4" /> Google Sheets
+              <FileSpreadsheet className="h-4 w-4" /> Sync Settings
             </TabsTrigger>
           </TabsList>
           
@@ -183,7 +247,7 @@ export function GulaDashboard() {
           </TabsContent>
 
           <TabsContent value="sync" className="mt-4">
-            <GoogleSheetsSync onImport={importReadings} />
+            <GoogleSheetsSync onImport={handleAutoSync} />
           </TabsContent>
         </Tabs>
       </div>
