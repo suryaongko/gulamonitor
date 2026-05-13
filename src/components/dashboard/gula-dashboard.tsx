@@ -206,9 +206,9 @@ export function GulaDashboard() {
               <Lock className="h-12 w-12 text-amber-600" />
             </div>
             <div className="space-y-3">
-              <h2 className="text-4xl font-black text-slate-900">Akses Terbatas</h2>
+              <h2 className="text-4xl font-black text-slate-900 leading-tight">Akses Terbatas</h2>
               <p className="text-slate-500 text-lg font-medium">
-                Akun Anda belum memiliki izin untuk memantau data. Silakan hubungi pemilik data.
+                Akun Anda ({user?.email}) belum memiliki izin untuk memantau data. Silakan hubungi pemilik data.
               </p>
             </div>
           </CardContent>
@@ -243,7 +243,7 @@ export function GulaDashboard() {
               onClick={() => setViewingOwner({uid: perm.ownerUid, email: perm.ownerEmail})}
               className="rounded-xl h-10 px-6 gap-2 font-bold"
             >
-              <Users className="h-4 w-4" /> {perm.ownerEmail.split('@')[0]}
+              <Users className="h-4 w-4" /> {perm.ownerEmail?.split('@')[0] || 'Owner'}
             </Button>
           ))}
         </div>
@@ -266,7 +266,7 @@ export function GulaDashboard() {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('24h')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl", timeFilter === '24h' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === '24h' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
                 >
                   24 JAM
                 </Button>
@@ -274,7 +274,7 @@ export function GulaDashboard() {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('all')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl", timeFilter === 'all' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === 'all' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
                 >
                   SEMUA
                 </Button>
@@ -287,18 +287,18 @@ export function GulaDashboard() {
 
           <Tabs defaultValue="readings" className="w-full">
             <TabsList className="bg-slate-100/50 p-1.5 rounded-[1.8rem] h-auto flex-wrap gap-1.5">
-              <TabsTrigger value="readings" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
+              <TabsTrigger value="readings" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
                 <History className="h-4 w-4 mr-2" /> Riwayat
               </TabsTrigger>
-              <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-primary">
+              <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-primary data-[state=active]:bg-white">
                 <Sparkles className="h-4 w-4 mr-2" /> Analisis AI
               </TabsTrigger>
               {isAppOwner && !viewingOwner && (
                 <>
-                  <TabsTrigger value="sharing" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
+                  <TabsTrigger value="sharing" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
                     <Users className="h-4 w-4 mr-2" /> Izin Akses
                   </TabsTrigger>
-                  <TabsTrigger value="sync" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
+                  <TabsTrigger value="sync" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
                     <FileSpreadsheet className="h-4 w-4 mr-2" /> Google Sheets
                   </TabsTrigger>
                 </>

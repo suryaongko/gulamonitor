@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
 import { Loader2, LogIn, Send, ShieldCheck, Key, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
 
 export default function Home() {
   const { user, loading } = useUser();
@@ -33,7 +35,7 @@ export default function Home() {
 
   const handleAuth = async (action: 'login' | 'request') => {
     if (!auth) {
-      toast({ title: "Firebase Belum Siap", variant: "destructive" });
+      toast({ title: "Layanan Belum Siap", variant: "destructive" });
       return;
     }
     setInitialAction(action);
@@ -42,12 +44,17 @@ export default function Home() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      toast({ title: "Gagal Login", description: error.message, variant: "destructive" });
+      console.error("Auth Error:", error);
+      toast({ title: "Gagal Login", description: "Pastikan koneksi internet stabil.", variant: "destructive" });
+      setInitialAction(null);
     }
   };
 
   const handleRequestAccess = async () => {
-    if (!db || !user?.email || !requestEmail) return;
+    if (!db || !user?.email || !requestEmail) {
+      toast({ title: "Data Belum Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
+      return;
+    }
     setIsSending(true);
     const targetEmail = requestEmail.toLowerCase().trim();
     const myEmail = user.email.toLowerCase();
@@ -59,11 +66,12 @@ export default function Home() {
         status: "pending",
         timestamp: new Date().toISOString()
       });
-      toast({ title: "Terkirim", description: `Permintaan akses dikirim ke ${targetEmail}.` });
+      toast({ title: "Permintaan Terkirim", description: `Menunggu persetujuan dari ${targetEmail}.` });
       setRequestEmail("");
       setIsDialogOpen(false);
-    } catch (error) {
-      toast({ title: "Gagal Mengirim", variant: "destructive" });
+    } catch (error: any) {
+      console.error("Request Error:", error);
+      toast({ title: "Gagal Mengirim", description: "Terjadi masalah pada server. Coba lagi nanti.", variant: "destructive" });
     } finally {
       setIsSending(false);
     }
@@ -87,24 +95,24 @@ export default function Home() {
               <ShieldCheck className="h-12 w-12 text-white" />
             </div>
             <div className="space-y-4">
-              <h1 className="text-6xl font-black text-slate-900 tracking-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
+              <h1 className="text-6xl font-black text-slate-900 tracking-tight leading-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
               <p className="text-xl text-slate-600 max-w-lg">Pemantauan kesehatan Berlin-Time yang tersinkronisasi dan aman.</p>
             </div>
           </div>
-          <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white/80 backdrop-blur-xl">
+          <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white/90 backdrop-blur-xl">
             <CardHeader className="p-8 text-center">
               <CardTitle className="text-3xl font-black">Pilih Akses</CardTitle>
-              <CardDescription>Gunakan akun Google Anda</CardDescription>
+              <CardDescription>Gunakan akun Google Anda untuk memulai</CardDescription>
             </CardHeader>
             <CardContent className="p-8 pt-0 space-y-4">
-              <Button onClick={() => handleAuth('login')} className="w-full h-16 rounded-2xl text-lg font-bold gap-3">
+              <Button onClick={() => handleAuth('login')} className="w-full h-16 rounded-2xl text-lg font-bold gap-3 transition-transform hover:scale-[1.02]">
                 <LogIn className="h-6 w-6" /> Login Owner / Guest
               </Button>
               <div className="relative py-2">
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-4 text-muted-foreground">atau</span></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-white/90 px-4 text-muted-foreground font-black">atau</span></div>
               </div>
-              <Button variant="outline" onClick={() => handleAuth('request')} className="w-full h-16 rounded-2xl text-lg font-bold gap-3">
+              <Button variant="outline" onClick={() => handleAuth('request')} className="w-full h-16 rounded-2xl text-lg font-bold gap-3 border-2 transition-transform hover:scale-[1.02]">
                 <Key className="h-6 w-6 text-primary" /> Minta Akses Baru
               </Button>
             </CardContent>
@@ -126,11 +134,6 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="rounded-xl gap-2 h-12 px-6 font-bold">
-                  <Key className="h-4 w-4" /> Minta Akses
-                </Button>
-              </DialogTrigger>
               <DialogContent className="rounded-[2rem] sm:max-w-md p-8">
                 <DialogHeader><DialogTitle className="text-3xl font-black text-primary">Kirim Permintaan</DialogTitle></DialogHeader>
                 <div className="space-y-6 py-6">
@@ -146,7 +149,7 @@ export default function Home() {
                 </div>
               </DialogContent>
             </Dialog>
-            <Button variant="outline" onClick={() => signOut(auth!)} className="rounded-xl h-12 px-6 text-red-600 font-bold">
+            <Button variant="outline" onClick={() => signOut(auth!)} className="rounded-xl h-12 px-6 text-red-600 font-bold border-red-100 hover:bg-red-50">
               <ArrowRight className="h-4 w-4" /> Keluar
             </Button>
           </div>
