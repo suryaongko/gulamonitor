@@ -6,25 +6,63 @@ import { useUser } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { useAuth } from "@/firebase";
-import { Loader2, LogIn, LogOut } from "lucide-react";
+import { Loader2, LogIn, LogOut, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
   const { user, loading } = useUser();
   const auth = useAuth();
+  const { toast } = useToast();
 
   const handleLogin = async () => {
-    if (!auth) return;
+    if (!auth) {
+      toast({
+        title: "Firebase Belum Siap",
+        description: "Pastikan konfigurasi API Key sudah dimasukkan di App Hosting.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     const provider = new GoogleAuthProvider();
+    // Tambahkan prompt untuk memastikan akun selalu bisa dipilih
+    provider.setCustomParameters({ prompt: 'select_account' });
+
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+      toast({
+        title: "Berhasil Masuk",
+        description: "Selamat datang di GulaMonitor!",
+      });
+    } catch (error: any) {
       console.error("Login failed", error);
+      let message = "Terjadi kesalahan saat login.";
+      
+      if (error.code === 'auth/operation-not-allowed') {
+        message = "Metode Google Sign-in belum diaktifkan di Firebase Console.";
+      } else if (error.code === 'auth/invalid-api-key') {
+        message = "Kunci API Firebase tidak valid atau belum diset.";
+      } else if (error.code === 'auth/auth-domain-config-required') {
+        message = "Konfigurasi authDomain diperlukan untuk login popup.";
+      } else if (error.code === 'auth/unauthorized-domain') {
+        message = "Domain ini belum terdaftar di 'Authorized Domains' di Firebase.";
+      }
+
+      toast({
+        title: "Login Gagal",
+        description: message,
+        variant: "destructive"
+      });
     }
   };
 
   const handleLogout = async () => {
     if (!auth) return;
     await signOut(auth);
+    toast({
+      title: "Sudah Keluar",
+      description: "Anda telah aman keluar dari aplikasi.",
+    });
   };
 
   if (loading) {
@@ -43,14 +81,20 @@ export default function Home() {
             <h1 className="text-4xl font-bold text-primary">GulaMonitor</h1>
             <p className="text-muted-foreground">Monitor gula darah Anda secara pribadi dan aman.</p>
           </div>
-          <div className="p-6 bg-primary/5 rounded-2xl">
-            <p className="text-sm text-slate-600 mb-6">
+          
+          <div className="p-6 bg-primary/5 rounded-2xl space-y-4">
+            <p className="text-sm text-slate-600">
               Silakan masuk dengan akun Google Anda untuk mengakses data kesehatan pribadi Anda.
             </p>
             <Button onClick={handleLogin} className="w-full gap-2 rounded-xl h-12 text-lg font-semibold">
               <LogIn className="h-5 w-5" />
               Masuk dengan Google
             </Button>
+          </div>
+
+          <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground bg-slate-50 p-3 rounded-lg">
+            <AlertCircle className="h-4 w-4" />
+            <span>Pastikan popup tidak diblokir oleh browser Anda.</span>
           </div>
         </div>
       </main>
