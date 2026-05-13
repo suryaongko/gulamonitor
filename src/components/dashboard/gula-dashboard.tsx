@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -12,7 +13,7 @@ import { SharedAccessManager } from "./shared-access-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock, Info } from "lucide-react";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -25,9 +26,6 @@ export interface Reading {
   userId?: string;
 }
 
-/**
- * PENTING: Menggunakan URL Apps Script yang Anda berikan.
- */
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxYQ9YMryTvSkYuSAgzz2WevurAZ47gHVwVfXfh5U0Y_lSk5A9ecG2_GdSO15tV-k0E/exec";
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
 const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
@@ -43,6 +41,7 @@ export function GulaDashboard() {
   const userEmail = user?.email?.toLowerCase() || "";
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
+  // Query permissions for guests
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -85,7 +84,6 @@ export function GulaDashboard() {
     if (!db || !user || !isAppOwner || viewingOwner) return; 
     
     try {
-      // 1. Simpan ke Firestore
       addDoc(collection(db, "readings"), {
         value,
         timestamp,
@@ -93,30 +91,16 @@ export function GulaDashboard() {
         createdAt: serverTimestamp()
       });
 
-      // 2. Kirim ke Google Sheets via Apps Script (Async & Robust)
-      if (APPS_SCRIPT_URL && APPS_SCRIPT_URL.includes("script.google.com")) {
+      if (APPS_SCRIPT_URL) {
         fetch(APPS_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
-          cache: "no-cache",
-          headers: {
-            "Content-Type": "text/plain",
-          },
-          body: JSON.stringify({ 
-            value: value, 
-            timestamp: timestamp, 
-            userEmail: user.email 
-          }),
-        }).catch(err => {
-          console.warn("Google Sheets Sync Warning (Silent):", err);
-        });
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ value, timestamp, userEmail: user.email }),
+        }).catch(err => console.warn("Sync Warning:", err));
       }
 
-      toast({ 
-        title: "Data Dicatat!", 
-        description: "Hasil tersimpan di database dan dikirim ke Google Sheets." 
-      });
-
+      toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets." });
     } catch (error) {
       toast({ title: "Gagal menyimpan", variant: "destructive" });
     }
@@ -143,14 +127,38 @@ export function GulaDashboard() {
 
     try {
       await batch.commit();
-      toast({ 
-        title: "Sinkronisasi Berhasil", 
-        description: `${newItems.length} data baru ditarik dari Google Sheets.` 
-      });
+      toast({ title: "Auto-Sync Berhasil", description: `${newItems.length} data baru ditarik.` });
     } catch (error) {
       console.error("Batch sync error:", error);
     }
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
+
+  // Sinkronisasi otomatis di latar belakang saat owner login
+  useEffect(() => {
+    if (isAppOwner && !viewingOwner && GOOGLE_SHEETS_CSV_URL) {
+      const triggerAutoSync = async () => {
+        try {
+          const response = await fetch(GOOGLE_SHEETS_CSV_URL);
+          const csvText = await response.text();
+          const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
+          if (rows.length <= 1) return;
+
+          const importedReadings: Reading[] = rows.slice(1).map(row => {
+            const columns = row.includes(";") ? row.split(";") : row.split(",");
+            const val = parseFloat(columns[1]?.replace(",", ".") || "0");
+            const date = new Date(columns[0]);
+            if (isNaN(val) || isNaN(date.getTime())) return null;
+            return { id: date.getTime().toString(), value: val, timestamp: date.toISOString() };
+          }).filter((r): r is Reading => r !== null);
+
+          handleImportedReadings(importedReadings);
+        } catch (e) {
+          console.warn("Background sync failed silently", e);
+        }
+      };
+      triggerAutoSync();
+    }
+  }, [isAppOwner, viewingOwner, handleImportedReadings]);
 
   if (loading && allReadings.length === 0) {
     return (
@@ -204,7 +212,7 @@ export function GulaDashboard() {
 
   return (
     <div className="space-y-8 font-body">
-      {sharedPermissions && sharedPermissions.length > 0 && (
+      {(sharedPermissions && sharedPermissions.length > 0) && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
             <ShieldAlert className="h-3 w-3" /> Sumber Data:
@@ -241,7 +249,7 @@ export function GulaDashboard() {
             </div>
             <div>
               <p className="font-black text-lg">Mode Pemantauan Aktif</p>
-              <p className="text-sm opacity-90 font-medium">Melihat riwayat kesehatan: {viewingOwner.email}</p>
+              <p className="text-sm opacity-90 font-medium">Melihat riwayat: {viewingOwner.email}</p>
             </div>
           </div>
           {isAppOwner && (
@@ -253,24 +261,23 @@ export function GulaDashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className={cn("space-y-8 transition-all duration-500", isAppOwner && !viewingOwner ? "lg:col-span-8" : "lg:col-span-12")}>
+        <div className={cn("space-y-8 transition-all duration-500", (isAppOwner && !viewingOwner) ? "lg:col-span-8" : "lg:col-span-12")}>
           <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
           
           <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2.5rem]">
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0 px-10 pt-10">
               <div className="space-y-1">
                 <CardTitle className="text-2xl font-black flex items-center gap-3 text-slate-800">
-                  <Activity className="h-6 w-6 text-primary" />
-                  Visualisasi Tren
+                  <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Gula Darah dalam Waktu</p>
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Gula Darah</p>
               </div>
               <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl">
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('24h')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === '24h' ? "bg-white text-primary shadow-lg" : "text-slate-50")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl", timeFilter === '24h' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
                 >
                   24 JAM
                 </Button>
@@ -278,7 +285,7 @@ export function GulaDashboard() {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('all')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === 'all' ? "bg-white text-primary shadow-lg" : "text-slate-50")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl", timeFilter === 'all' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
                 >
                   SEMUA
                 </Button>
@@ -290,34 +297,32 @@ export function GulaDashboard() {
           </Card>
 
           <Tabs defaultValue="readings" className="w-full">
-            <TabsList className="bg-slate-100/50 p-1.5 rounded-[1.8rem] h-auto flex-wrap gap-1.5 border border-slate-100">
-              <TabsTrigger value="readings" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
-                <History className="h-4 w-4" /> Riwayat
+            <TabsList className="bg-slate-100/50 p-1.5 rounded-[1.8rem] h-auto flex-wrap gap-1.5">
+              <TabsTrigger value="readings" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
+                <History className="h-4 w-4 mr-2" /> Riwayat
               </TabsTrigger>
-              <TabsTrigger value="ai" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
-                <Sparkles className="h-4 w-4 text-primary" /> Analisis AI
+              <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
+                <Sparkles className="h-4 w-4 mr-2 text-primary" /> Analisis AI
               </TabsTrigger>
               {isAppOwner && !viewingOwner && (
                 <>
-                  <TabsTrigger value="sharing" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
-                    <Users className="h-4 w-4" /> Izin Akses
+                  <TabsTrigger value="sharing" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
+                    <Users className="h-4 w-4 mr-2" /> Izin Akses
                   </TabsTrigger>
-                  <TabsTrigger value="sync" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
-                    <FileSpreadsheet className="h-4 w-4" /> Google Sheets
+                  <TabsTrigger value="sync" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
+                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Google Sheets
                   </TabsTrigger>
                 </>
               )}
             </TabsList>
             
-            <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="mt-8">
               <TabsContent value="readings">
                 <ReadingsList readings={allReadings} />
               </TabsContent>
-              
               <TabsContent value="ai">
                 <AIInsightsCard readings={allReadings} minRange={minRange} maxRange={maxRange} />
               </TabsContent>
-
               {isAppOwner && !viewingOwner && (
                 <>
                   <TabsContent value="sharing">
@@ -337,25 +342,19 @@ export function GulaDashboard() {
         </div>
 
         {isAppOwner && !viewingOwner && (
-          <div className="lg:col-span-4 space-y-8 animate-in fade-in slide-in-from-right-4 duration-700">
-            <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
+          <div className="lg:col-span-4 space-y-8">
+            <Card className="border-none shadow-2xl bg-white rounded-[2.5rem]">
               <CardHeader className="px-10 pt-10 pb-4">
-                <CardTitle className="text-2xl font-black flex items-center gap-3 text-primary">
-                  <Activity className="h-7 w-7" /> 
-                  Catat Baru
-                </CardTitle>
+                <CardTitle className="text-2xl font-black text-primary">Catat Baru</CardTitle>
               </CardHeader>
               <CardContent className="px-10 pb-10">
                 <ReadingForm onAdd={addReading} />
               </CardContent>
             </Card>
 
-            <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
+            <Card className="border-none shadow-2xl bg-white rounded-[2.5rem]">
               <CardHeader className="px-10 pt-10 pb-4">
-                <CardTitle className="text-2xl font-black flex items-center gap-3 text-primary">
-                  <Settings className="h-7 w-7" /> 
-                  Target Sehat
-                </CardTitle>
+                <CardTitle className="text-2xl font-black text-primary">Target Sehat</CardTitle>
               </CardHeader>
               <CardContent className="px-10 pb-10">
                 <RangeSettings 
