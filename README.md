@@ -5,56 +5,37 @@ Aplikasi pemantauan gula darah pribadi yang tersinkronisasi dengan Google Sheets
 
 ---
 
-## 🔑 CARA MEMASUKKAN API KEY (WAJIB)
+## 🔑 CARA MENGATASI LOGIN GAGAL (API KEY INVALID)
 
-Tanpa langkah ini, aplikasi tidak akan bisa login atau menyimpan data.
+Jika Anda melihat pesan **"firebase: error auth/api-key-not-valid"**, artinya aplikasi Anda berjalan tetapi tidak memiliki "kunci" untuk mengakses database Firebase Anda.
 
-### 1. Temukan Kunci Anda di Firebase
+### 1. Dapatkan Konfigurasi yang Benar
 1. Buka [Firebase Console](https://console.firebase.google.com/).
 2. Klik ikon **Gerigi (Settings)** -> **Project settings**.
 3. Gulir ke bawah ke bagian **"Your apps"**.
-4. Di bagian **"SDK setup and configuration"**, pilih opsi **"Config"**.
-5. Anda akan melihat kode seperti ini:
-   ```js
-   const firebaseConfig = {
-     apiKey: "AIza...",
-     authDomain: "project-id.firebaseapp.com",
-     ...
-   };
-   ```
+4. Di bagian **"SDK setup and configuration"**, pastikan memilih opsi **"Config"**.
+5. Salin nilai `apiKey`, `authDomain`, dll. **Pastikan tidak menyalin tanda kutip atau koma.**
 
-### 2. Masukkan ke Website Live (Dashboard App Hosting)
-Ini adalah langkah paling penting agar website Anda di internet berfungsi:
+### 2. Masukkan ke Dashboard App Hosting (Live Website)
+Langkah ini wajib dilakukan agar website yang sudah di-deploy bisa berfungsi:
 1. Buka Dashboard **App Hosting** di Firebase Console.
 2. Pilih backend aplikasi Anda.
 3. Klik tab **Environment variables**.
-4. Klik **Add variable** dan masukkan satu per satu (Gunakan huruf kapital):
-   - `NEXT_PUBLIC_FIREBASE_API_KEY`
-   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
-   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
-   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-   - `NEXT_PUBLIC_FIREBASE_APP_ID`
-5. Klik **Save and create new release**. Tunggu sampai proses build selesai (sekitar 2-5 menit).
+4. Klik **Add variable** dan masukkan nilai berikut (Gunakan HURUF KAPITAL):
+   - `NEXT_PUBLIC_FIREBASE_API_KEY` = (tempel apiKey Anda)
+   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` = (tempel authDomain Anda)
+   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID` = (tempel projectId Anda)
+   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` = (tempel storageBucket Anda)
+   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` = (tempel messagingSenderId Anda)
+   - `NEXT_PUBLIC_FIREBASE_APP_ID` = (tempel appId Anda)
+5. **PENTING**: Klik **"Save and create new release"**. Perubahan tidak akan aktif sampai rilis baru selesai di-build (tunggu 2-5 menit).
 
-### 3. Masukkan ke Komputer (File .env)
-Jika Anda menjalankan aplikasi di komputer sendiri:
-1. Buka file bernama `.env` di folder proyek ini.
-2. Tempelkan nilai-nilai yang Anda salin dari Firebase Console sesuai dengan nama variabelnya.
-
----
-
-## 🛠 Cara Mengatasi Masalah Login Google
-Jika tombol login tidak memberikan respon atau muncul error:
-
-1. **Aktifkan Google Provider**:
-   - Buka **Authentication** -> **Sign-in method**.
-   - Klik **Add new provider** -> **Google** -> **Enable**.
-   - Masukkan nama proyek dan email dukungan.
-
-2. **Daftarkan Domain**:
-   - Buka **Authentication** -> **Settings** -> **Authorized domains**.
-   - Tambahkan domain website Anda (contoh: `gulamonitor-xxxxx.web.app`).
+### 3. Aktifkan Google Login di Firebase
+1. Buka menu **Authentication** -> **Sign-in method**.
+2. Klik **Add new provider** -> pilih **Google**.
+3. Klik **Enable**, masukkan email dukungan Anda, lalu klik **Save**.
+4. Buka tab **Settings** -> **Authorized domains**.
+5. Klik **Add domain** dan masukkan alamat website Anda (misal: `gulamonitor-xxxxx.web.app`).
 
 ---
 

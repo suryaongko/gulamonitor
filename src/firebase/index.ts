@@ -1,3 +1,4 @@
+
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
@@ -10,9 +11,9 @@ export function initializeFirebase(): {
   firestore: Firestore | null;
   auth: Auth | null;
 } {
-  // Validasi kunci API untuk mencegah error crash saat runtime
-  if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "undefined") {
-    console.warn("Firebase API Key is missing. Please check your environment variables.");
+  // Validasi kunci API: Jika kosong atau bernilai string "undefined", kita anggap belum siap.
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "undefined" || firebaseConfig.apiKey === "") {
+    console.warn("Konfigurasi Firebase belum lengkap. Silakan atur Environment Variables di App Hosting.");
     return { firebaseApp: null, firestore: null, auth: null };
   }
 
@@ -24,7 +25,7 @@ export function initializeFirebase(): {
 
     return { firebaseApp, firestore, auth };
   } catch (error) {
-    console.error("Error initializing Firebase:", error);
+    console.error("Gagal inisialisasi Firebase:", error);
     return { firebaseApp: null, firestore: null, auth: null };
   }
 }
