@@ -1,4 +1,3 @@
-
 # GulaMonitor - Health Sync
 
 Aplikasi pemantauan gula darah pribadi yang tersinkronisasi dengan Google Sheets.
@@ -12,12 +11,12 @@ Agar data dari aplikasi langsung terupdate di Google Sheets, Anda wajib memasang
 ### 1. Di Google Sheets Anda
 1. Buka file Google Sheets Anda.
 2. Klik menu **Extensions** -> **Apps Script**.
-3. Hapus semua kode yang ada, dan tempel kode berikut (sudah dioptimalkan):
+3. Hapus semua kode yang ada, dan tempel kode berikut:
 
 ```javascript
 function doPost(e) {
   try {
-    // Pastikan ada data yang masuk
+    // Memastikan ada data kiriman
     if (!e || !e.postData || !e.postData.contents) {
       return ContentService.createTextOutput("Error: No data received").setMimeType(ContentService.MimeType.TEXT);
     }
@@ -45,19 +44,18 @@ function doPost(e) {
 ```
 
 4. Klik ikon **Save** (beri nama "GulaMonitorSync").
-5. **PENTING: JANGAN KLIK RUN**. Menekan tombol Run akan menyebabkan error karena tidak ada data kiriman.
-6. Klik tombol **Deploy** -> **New Deployment**.
-7. Pilih type: **Web App**.
-8. Description: "Sync v2".
-9. Execute as: **Me** (Email Anda).
-10. Who has access: **Anyone** (Ini wajib agar aplikasi bisa mengirim data).
-11. Klik **Deploy**. Salin **Web App URL** yang muncul.
-12. **Buka file `src/components/dashboard/gula-dashboard.tsx`** dan tempel URL tersebut ke variabel `APPS_SCRIPT_URL`.
+5. **PENTING: JANGAN KLIK RUN**. Klik tombol **Deploy** -> **New Deployment**.
+6. Pilih type: **Web App**.
+7. Description: "GulaMonitor Sync V3".
+8. Execute as: **Me** (Email Anda).
+9. Who has access: **Anyone** (Ini syarat mutlak agar aplikasi bisa mengirim data).
+10. Klik **Deploy**. Salin **Web App URL** yang muncul.
+11. **Buka file `src/components/dashboard/gula-dashboard.tsx`** dan tempel URL tersebut ke variabel `APPS_SCRIPT_URL`.
 
 ### 2. Publish CSV (Agar Aplikasi Bisa Membaca Data)
 1. Di Google Sheets, klik **File** -> **Share** -> **Publish to web**.
 2. Pilih format **Comma-separated values (.csv)**.
-3. Klik **Publish**. Salin link yang muncul dan tempel ke `GOOGLE_SHEETS_CSV_URL` di dashboard aplikasi.
+3. Klik **Publish**. Salin link yang muncul dan tempel ke `GOOGLE_SHEETS_CSV_URL` di dashboard aplikasi (biasanya sudah terotomatisasi di kode).
 
 ---
 

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -27,10 +26,9 @@ export interface Reading {
 }
 
 /**
- * PENTING: Ganti URL di bawah ini dengan URL 'Web App' Anda setelah melakukan Deployment di Google Sheets.
- * Caranya: Extensions -> Apps Script -> Deploy -> New Deployment -> Web App.
+ * PENTING: Menggunakan URL Apps Script yang Anda berikan.
  */
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhYynyF6F0lWou4EkhVnXThLp_MpC0MiZqYOP3avs4dyK4vhnOl7uvxOniUqJ_7i6v/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxYQ9YMryTvSkYuSAgzz2WevurAZ47gHVwVfXfh5U0Y_lSk5A9ecG2_GdSO15tV-k0E/exec";
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
 const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
 
@@ -87,7 +85,7 @@ export function GulaDashboard() {
     if (!db || !user || !isAppOwner || viewingOwner) return; 
     
     try {
-      // 1. Simpan ke Firestore (Lokal/Cloud)
+      // 1. Simpan ke Firestore
       addDoc(collection(db, "readings"), {
         value,
         timestamp,
@@ -95,10 +93,8 @@ export function GulaDashboard() {
         createdAt: serverTimestamp()
       });
 
-      // 2. Kirim ke Google Sheets via Apps Script (Async)
+      // 2. Kirim ke Google Sheets via Apps Script (Async & Robust)
       if (APPS_SCRIPT_URL && APPS_SCRIPT_URL.includes("script.google.com")) {
-        // Menggunakan mode no-cors untuk menghindari blokir browser saat redirect Apps Script
-        // Mengirim sebagai text/plain agar browser tidak melakukan pre-flight request
         fetch(APPS_SCRIPT_URL, {
           method: "POST",
           mode: "no-cors",
@@ -118,7 +114,7 @@ export function GulaDashboard() {
 
       toast({ 
         title: "Data Dicatat!", 
-        description: "Hasil tersimpan di database. Sinkronisasi ke Google Sheets sedang diproses." 
+        description: "Hasil tersimpan di database dan dikirim ke Google Sheets." 
       });
 
     } catch (error) {
@@ -274,7 +270,7 @@ export function GulaDashboard() {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('24h')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === '24h' ? "bg-white text-primary shadow-lg" : "text-slate-500")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === '24h' ? "bg-white text-primary shadow-lg" : "text-slate-50")}
                 >
                   24 JAM
                 </Button>
@@ -282,7 +278,7 @@ export function GulaDashboard() {
                   variant="ghost" 
                   size="sm" 
                   onClick={() => setTimeFilter('all')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === 'all' ? "bg-white text-primary shadow-lg" : "text-slate-500")}
+                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === 'all' ? "bg-white text-primary shadow-lg" : "text-slate-50")}
                 >
                   SEMUA
                 </Button>
@@ -304,10 +300,10 @@ export function GulaDashboard() {
               {isAppOwner && !viewingOwner && (
                 <>
                   <TabsTrigger value="sharing" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
-                    <Users className="h-4 w-4" /> Kelola Izin
+                    <Users className="h-4 w-4" /> Izin Akses
                   </TabsTrigger>
                   <TabsTrigger value="sync" className="flex items-center gap-3 rounded-2xl py-3 px-8 data-[state=active]:bg-white data-[state=active]:shadow-lg font-black text-xs uppercase tracking-widest transition-all">
-                    <FileSpreadsheet className="h-4 w-4" /> Sinkronisasi
+                    <FileSpreadsheet className="h-4 w-4" /> Google Sheets
                   </TabsTrigger>
                 </>
               )}
@@ -358,7 +354,7 @@ export function GulaDashboard() {
               <CardHeader className="px-10 pt-10 pb-4">
                 <CardTitle className="text-2xl font-black flex items-center gap-3 text-primary">
                   <Settings className="h-7 w-7" /> 
-                  Konfigurasi
+                  Target Sehat
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-10 pb-10">
