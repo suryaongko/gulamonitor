@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
-import { useFirestore, useCollection, useUser } from "@/firebase";
+import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -41,7 +41,6 @@ export function GulaDashboard() {
   const userEmail = user?.email?.toLowerCase() || "";
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
-  // Query permissions for guests
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -65,12 +64,7 @@ export function GulaDashboard() {
 
   const allReadings = useMemo(() => {
     if (!readingsData) return [];
-    return readingsData.map(doc => ({
-      id: doc.id,
-      value: doc.value,
-      timestamp: doc.timestamp,
-      userId: doc.userId
-    })) as Reading[];
+    return readingsData as Reading[];
   }, [readingsData]);
 
   const filteredReadings = useMemo(() => {
@@ -83,27 +77,32 @@ export function GulaDashboard() {
   const addReading = async (value: number, timestamp: string) => {
     if (!db || !user || !isAppOwner || viewingOwner) return; 
     
-    try {
-      addDoc(collection(db, "readings"), {
-        value,
-        timestamp,
-        userId: user.uid,
-        createdAt: serverTimestamp()
+    const payload = {
+      value,
+      timestamp,
+      userId: user.uid,
+      createdAt: serverTimestamp()
+    };
+
+    addDoc(collection(db, "readings"), payload)
+      .catch(async () => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'readings',
+          operation: 'create',
+          requestResourceData: payload
+        }));
       });
 
-      if (APPS_SCRIPT_URL) {
-        fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          mode: "no-cors",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ value, timestamp, userEmail: user.email }),
-        }).catch(err => console.warn("Sync Warning:", err));
-      }
-
-      toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets." });
-    } catch (error) {
-      toast({ title: "Gagal menyimpan", variant: "destructive" });
+    if (APPS_SCRIPT_URL) {
+      fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ value, timestamp, userEmail: user.email }),
+      }).catch(err => console.warn("Sync Warning:", err));
     }
+
+    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets." });
   };
 
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
@@ -125,39 +124,43 @@ export function GulaDashboard() {
       });
     });
 
-    try {
-      await batch.commit();
+    batch.commit().then(() => {
       toast({ title: "Auto-Sync Berhasil", description: `${newItems.length} data baru ditarik.` });
-    } catch (error) {
-      console.error("Batch sync error:", error);
-    }
+    }).catch(async () => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'readings',
+        operation: 'write'
+      }));
+    });
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
-  // Sinkronisasi otomatis di latar belakang saat owner login
   useEffect(() => {
-    if (isAppOwner && !viewingOwner && GOOGLE_SHEETS_CSV_URL) {
-      const triggerAutoSync = async () => {
-        try {
-          const response = await fetch(GOOGLE_SHEETS_CSV_URL);
-          const csvText = await response.text();
-          const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
-          if (rows.length <= 1) return;
+    if (!isAppOwner || viewingOwner || !GOOGLE_SHEETS_CSV_URL) return;
 
-          const importedReadings: Reading[] = rows.slice(1).map(row => {
-            const columns = row.includes(";") ? row.split(";") : row.split(",");
-            const val = parseFloat(columns[1]?.replace(",", ".") || "0");
-            const date = new Date(columns[0]);
-            if (isNaN(val) || isNaN(date.getTime())) return null;
-            return { id: date.getTime().toString(), value: val, timestamp: date.toISOString() };
-          }).filter((r): r is Reading => r !== null);
+    const triggerAutoSync = async () => {
+      try {
+        const response = await fetch(`${GOOGLE_SHEETS_CSV_URL}&t=${Date.now()}`);
+        const csvText = await response.text();
+        const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
+        if (rows.length <= 1) return;
 
-          handleImportedReadings(importedReadings);
-        } catch (e) {
-          console.warn("Background sync failed silently", e);
-        }
-      };
-      triggerAutoSync();
-    }
+        const importedReadings: Reading[] = rows.slice(1).map(row => {
+          const columns = row.includes(";") ? row.split(";") : row.split(",");
+          const val = parseFloat(columns[1]?.replace(",", ".") || "0");
+          const date = new Date(columns[0]);
+          if (isNaN(val) || isNaN(date.getTime())) return null;
+          return { id: date.getTime().toString(), value: val, timestamp: date.toISOString() };
+        }).filter((r): r is Reading => r !== null);
+
+        handleImportedReadings(importedReadings);
+      } catch (e) {
+        console.warn("Background sync failed", e);
+      }
+    };
+
+    triggerAutoSync();
+    const interval = setInterval(triggerAutoSync, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
   }, [isAppOwner, viewingOwner, handleImportedReadings]);
 
   if (loading && allReadings.length === 0) {
@@ -184,25 +187,6 @@ export function GulaDashboard() {
               <p className="text-slate-500 text-lg font-medium">
                 Akun Anda belum memiliki izin untuk melihat data milik owner.
               </p>
-            </div>
-            <div className="p-8 bg-slate-50 rounded-[2rem] text-left border border-slate-100 space-y-4">
-              <h3 className="font-black flex items-center gap-3 text-primary uppercase text-sm tracking-widest">
-                <Users className="h-5 w-5" /> Instruksi Akses:
-              </h3>
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">1</div>
-                  <p className="text-slate-600 font-medium leading-relaxed">Gunakan tombol <strong>"Minta Akses"</strong> di bagian header.</p>
-                </div>
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">2</div>
-                  <p className="text-slate-600 font-medium leading-relaxed">Masukkan email pemilik: <strong>{APP_OWNER_EMAIL}</strong>.</p>
-                </div>
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">3</div>
-                  <p className="text-slate-600 font-medium leading-relaxed">Pemilik akan menyetujui permintaan Anda melalui dashboard mereka.</p>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -238,25 +222,6 @@ export function GulaDashboard() {
               <Users className="h-4 w-4" /> {perm.ownerEmail.split('@')[0]}
             </Button>
           ))}
-        </div>
-      )}
-
-      {viewingOwner && (
-        <div className="bg-primary text-white p-6 rounded-[2rem] flex items-center justify-between shadow-2xl shadow-primary/20 animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/20 rounded-2xl">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-black text-lg">Mode Pemantauan Aktif</p>
-              <p className="text-sm opacity-90 font-medium">Melihat riwayat: {viewingOwner.email}</p>
-            </div>
-          </div>
-          {isAppOwner && (
-            <Button variant="secondary" size="sm" onClick={() => setViewingOwner(null)} className="rounded-xl h-10 px-6 gap-2 font-bold">
-              <ArrowLeft className="h-4 w-4" /> Kembali ke Data Saya
-            </Button>
-          )}
         </div>
       )}
 

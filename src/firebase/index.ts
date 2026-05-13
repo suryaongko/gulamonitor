@@ -11,22 +11,17 @@ export function initializeFirebase(): {
   firestore: Firestore | null;
   auth: Auth | null;
 } {
-  // Pastikan kita berada di lingkungan browser
   if (typeof window === 'undefined') {
     return { firebaseApp: null, firestore: null, auth: null };
   }
 
-  // Validasi kunci API dasar
   if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "undefined" || firebaseConfig.apiKey === "") {
-    console.warn("Konfigurasi Firebase belum lengkap. Silakan atur Environment Variables.");
     return { firebaseApp: null, firestore: null, auth: null };
   }
 
   try {
     const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     
-    // Inisialisasi layanan dengan pengamanan ekstra karena API Key yang salah 
-    // tetap bisa membuat initializeApp berhasil namun getAuth/getFirestore gagal.
     let firestore: Firestore | null = null;
     let auth: Auth | null = null;
 
@@ -54,3 +49,5 @@ export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
 export * from './auth/use-user';
+export * from './errors';
+export * from './error-emitter';

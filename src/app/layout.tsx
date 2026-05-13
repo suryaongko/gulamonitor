@@ -1,7 +1,9 @@
+
 import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from "@/firebase";
+import { FirebaseErrorListener } from "@/components/FirebaseErrorListener";
 
 export const metadata: Metadata = {
   title: 'GulaMonitor - Health Sync',
@@ -40,6 +42,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-primary/20">
         <FirebaseClientProvider>
+          <FirebaseErrorListener />
           {children}
           <Toaster />
         </FirebaseClientProvider>
