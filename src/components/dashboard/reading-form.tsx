@@ -27,23 +27,35 @@ export function ReadingForm({ onAdd }: ReadingFormProps) {
     resolver: zodResolver(readingSchema),
     defaultValues: {
       value: undefined,
-      timestamp: "", // Gunakan string kosong sebagai nilai awal untuk menghindari hydration mismatch
+      timestamp: "",
     },
   });
 
-  // Atur waktu default setelah komponen terpasang di browser
   useEffect(() => {
-    form.setValue("timestamp", new Date().toISOString().slice(0, 16));
+    // Set default local time in YYYY-MM-DDTHH:mm format for input
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
+    form.setValue("timestamp", localISOTime);
   }, [form]);
 
   const onSubmit = async (data: z.infer<typeof readingSchema>) => {
     setIsSubmitting(true);
-    // Simulasi delay sedikit agar terasa prosesnya
+    
+    // Konversi local input time (YYYY-MM-DDTHH:mm) ke ISO String lengkap (UTC)
+    // agar Google Sheets tidak salah menafsirkan jamnya.
+    const isoTimestamp = new Date(data.timestamp).toISOString();
+    
     await new Promise((resolve) => setTimeout(resolve, 300));
-    onAdd(data.value, data.timestamp);
+    onAdd(data.value, isoTimestamp);
+    
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
+    
     form.reset({
       value: undefined,
-      timestamp: new Date().toISOString().slice(0, 16),
+      timestamp: localISOTime,
     });
     setIsSubmitting(false);
   };

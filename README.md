@@ -28,7 +28,10 @@ function doPost(e) {
       return ContentService.createTextOutput("Error: Missing fields").setMimeType(ContentService.MimeType.TEXT);
     }
 
+    // Parsing ISO string dari aplikasi
     var timestamp = new Date(data.timestamp);
+    
+    // Pastikan format tanggal rapi dalam zona waktu Indonesia (GMT+7)
     var formattedDate = Utilities.formatDate(timestamp, "GMT+7", "dd/MM/yyyy HH:mm:ss");
     
     // Masukkan baris baru: Tanggal, Nilai, Email
