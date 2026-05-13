@@ -26,6 +26,7 @@ export interface Reading {
   userId?: string;
 }
 
+// URL Apps Script Anda (Ganti dengan URL 'Web App' setelah deploy script)
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzp3u7CYidcQ54ILprqUhvG6SdUijycxcYM9AUxcAPsU-7XYEqXOIaeg2VJwCM6PCTg/exec";
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
 const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
@@ -41,7 +42,6 @@ export function GulaDashboard() {
   const userEmail = user?.email?.toLowerCase() || "";
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
-  // Ambil daftar izin yang saya miliki sebagai TAMU
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -49,10 +49,8 @@ export function GulaDashboard() {
   
   const { data: sharedPermissions } = useCollection(sharedAccessQuery);
 
-  // Tentukan UID data mana yang akan ditampilkan
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
-  // Load readings berdasarkan UID terpilih
   const readingsQuery = useMemo(() => {
     if (!db || !currentUid) return null;
     return query(
@@ -86,6 +84,7 @@ export function GulaDashboard() {
     if (!db || !user || !isAppOwner || viewingOwner) return; 
     
     try {
+      // 1. Simpan ke Firestore
       await addDoc(collection(db, "readings"), {
         value,
         timestamp,
@@ -93,17 +92,38 @@ export function GulaDashboard() {
         createdAt: serverTimestamp()
       });
 
+      // 2. Kirim ke Google Sheets via Apps Script
+      toast({ 
+        title: "Sedang Menyimpan", 
+        description: "Data sedang dikirim ke Google Sheets & Database." 
+      });
+
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value, timestamp, userEmail: user.email }),
-      }).catch(err => console.error("Apps Script Error:", err));
-
-      toast({ 
-        title: "Data Disimpan", 
-        description: "Nilai gula darah berhasil dicatat." 
+        body: JSON.stringify({ 
+          value, 
+          timestamp, 
+          userEmail: user.email,
+          action: "add_reading" 
+        }),
+      })
+      .then(() => {
+        toast({ 
+          title: "Berhasil!", 
+          description: "Data tercatat. Google Sheets akan diperbarui dalam beberapa menit (delay cache)." 
+        });
+      })
+      .catch(err => {
+        console.error("Apps Script Error:", err);
+        toast({ 
+          title: "Gagal Sync Sheets", 
+          description: "Tersimpan di database lokal, namun gagal terhubung ke Google Sheets.",
+          variant: "destructive"
+        });
       });
+
     } catch (error) {
       toast({ title: "Gagal menyimpan", variant: "destructive" });
     }
@@ -132,7 +152,7 @@ export function GulaDashboard() {
       await batch.commit();
       toast({ 
         title: "Sinkronisasi Berhasil", 
-        description: `${newItems.length} data baru ditambahkan dari Google Sheets.` 
+        description: `${newItems.length} data baru ditarik dari Google Sheets.` 
       });
     } catch (error) {
       console.error("Batch sync error:", error);
@@ -191,7 +211,6 @@ export function GulaDashboard() {
 
   return (
     <div className="space-y-8 font-body">
-      {/* Switcher Akses Bersama */}
       {sharedPermissions && sharedPermissions.length > 0 && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
