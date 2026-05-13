@@ -23,17 +23,20 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
   const [autoSync, setAutoSync] = useState(initialAutoSync);
   const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const parseIndonesianDate = (dateStr: string) => {
+  const parseBerlinDate = (dateStr: string) => {
     if (!dateStr) return null;
+    // Format diharapkan: DD/MM/YYYY HH:mm:ss atau DD/MM/YYYY HH:mm
     const parts = dateStr.split(/[\/\-\s:]/);
-    if (parts.length >= 3) {
+    if (parts.length >= 5) {
       const day = parseInt(parts[0]);
       const month = parseInt(parts[1]) - 1;
       const year = parts[2].length === 2 ? 2000 + parseInt(parts[2]) : parseInt(parts[2]);
-      const hour = parts[3] ? parseInt(parts[3]) : 0;
-      const min = parts[4] ? parseInt(parts[4]) : 0;
-      const d = new Date(year, month, day, hour, min);
-      if (!isNaN(d.getTime())) return d;
+      const hour = parseInt(parts[3]);
+      const min = parseInt(parts[4]);
+      const sec = parts[5] ? parseInt(parts[5]) : 0;
+      
+      const d = new Date(year, month, day, hour, min, sec);
+      return isNaN(d.getTime()) ? null : d;
     }
     const fallback = new Date(dateStr);
     return isNaN(fallback.getTime()) ? null : fallback;
@@ -47,13 +50,12 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
     if (!isSilent) setIsLoading(true);
     
     try {
-      // Pastikan URL selalu berakhiran output=csv
       let fetchUrl = url;
       if (!fetchUrl.includes("output=csv")) {
         fetchUrl += (fetchUrl.includes("?") ? "&" : "?") + "output=csv";
       }
 
-      const response = await fetch(fetchUrl);
+      const response = await fetch(`${fetchUrl}&t=${Date.now()}`);
       if (!response.ok) throw new Error("Gagal mengambil data dari Google Sheets.");
       
       const csvText = await response.text();
@@ -69,7 +71,7 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
           if (!timestampStr || !valueStr) return null;
 
           const value = parseFloat(valueStr.replace(",", "."));
-          const dateObj = parseIndonesianDate(timestampStr);
+          const dateObj = parseBerlinDate(timestampStr);
           if (!dateObj || isNaN(value)) return null;
 
           return {
@@ -92,15 +94,12 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
     }
   }, [url, onImport]);
 
-  // Sync otomatis saat mount dan interval berkala jika autoSync aktif
   useEffect(() => {
     if (autoSync && url) {
-      handleSync(true); // Sync pertama kali
-      
-      // Setup interval sinkronisasi setiap 1 menit (Opsional, untuk real-time lebih baik)
+      handleSync(true);
       syncTimerRef.current = setInterval(() => {
         handleSync(true);
-      }, 60000);
+      }, 30000);
     }
 
     return () => {
@@ -126,7 +125,7 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
           </div>
         </div>
         <CardDescription>
-          Data ditarik otomatis dari Google Sheets setiap kali Anda membuka aplikasi.
+          Data ditarik otomatis dari Google Sheets setiap 30 detik.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -148,20 +147,6 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Sync Sekarang
             </Button>
-          </div>
-        </div>
-
-        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-emerald-100 rounded-full text-emerald-600">
-              <Zap className="h-4 w-4 fill-emerald-600" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-bold text-emerald-800">Sinkronisasi Instan</p>
-              <p className="text-xs text-emerald-700 leading-relaxed">
-                Data akan diperbarui secara otomatis di latar belakang tanpa mengganggu aktivitas Anda.
-              </p>
-            </div>
           </div>
         </div>
       </CardContent>

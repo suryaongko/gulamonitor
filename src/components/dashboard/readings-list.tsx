@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -46,10 +47,10 @@ export function ReadingsList({ readings }: ReadingsListProps) {
           <TableBody>
             {currentReadings.map((reading) => (
               <TableRow key={reading.id}>
-                <TableCell className="text-sm">
-                  {format(new Date(reading.timestamp), "MMM d, yyyy • h:mm a")}
+                <TableCell className="text-sm font-medium">
+                  {format(new Date(reading.timestamp), "dd/MM/yyyy HH:mm")}
                 </TableCell>
-                <TableCell className="text-right font-medium">
+                <TableCell className="text-right font-bold">
                   {reading.value}
                 </TableCell>
                 <TableCell className="text-right">

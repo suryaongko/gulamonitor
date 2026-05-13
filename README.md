@@ -12,7 +12,7 @@ Agar data dari aplikasi langsung terupdate di Google Sheets dan bisa dibaca kemb
 ### 1. Pasang Script Penerima Data
 1. Buka file Google Sheets Anda.
 2. Klik menu **Extensions** -> **Apps Script**.
-3. Hapus semua kode yang ada, dan tempel kode berikut:
+3. Hapus semua kode yang ada, dan tempel kode berikut (Zona Waktu: Berlin):
 
 ```javascript
 function doPost(e) {
@@ -28,11 +28,11 @@ function doPost(e) {
       return ContentService.createTextOutput("Error: Missing fields").setMimeType(ContentService.MimeType.TEXT);
     }
 
-    // Parsing ISO string dari aplikasi
+    // Parsing timestamp (ISO String)
     var timestamp = new Date(data.timestamp);
     
-    // Pastikan format tanggal rapi dalam zona waktu Indonesia (GMT+7)
-    var formattedDate = Utilities.formatDate(timestamp, "GMT+7", "dd/MM/yyyy HH:mm:ss");
+    // Format tanggal Berlin: DD/MM/YYYY HH:mm:ss
+    var formattedDate = Utilities.formatDate(timestamp, "Europe/Berlin", "dd/MM/yyyy HH:mm:ss");
     
     // Masukkan baris baru: Tanggal, Nilai, Email
     sheet.appendRow([formattedDate, data.value, data.userEmail || "Unknown"]);
@@ -58,18 +58,6 @@ function doPost(e) {
 
 ---
 
-## 🔑 SETUP API KEY (Firebase)
-
-Aplikasi ini menggunakan Firebase untuk autentikasi dan database. Pastikan variabel lingkungan berikut sudah diatur di Dashboard App Hosting Anda:
-1. `NEXT_PUBLIC_FIREBASE_API_KEY`
-2. `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
-3. `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-4. `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
-5. `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-6. `NEXT_PUBLIC_FIREBASE_APP_ID`
-
----
-
 ## 🛡️ HAK AKSES
-- **Owner (surya.ongko@gmail.com)**: Memiliki akses penuh untuk mencatat, sinkronisasi, dan mengelola izin.
-- **Guest**: Hanya bisa melihat data owner jika sudah disetujui di tab "Izin Akses" oleh owner.
+- **Owner (surya.ongko@gmail.com)**: Memiliki akses penuh.
+- **Guest**: Hanya bisa melihat data owner jika sudah disetujui.
