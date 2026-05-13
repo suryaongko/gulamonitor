@@ -1,9 +1,9 @@
+
 'use client';
 
 /**
  * Konfigurasi Firebase App.
- * Nilai-nilai ini diambil dari variabel lingkungan yang diatur di App Hosting.
- * Jika Anda menjalankan secara lokal, pastikan file .env sudah terisi.
+ * Nilai-nilai ini diambil dari variabel lingkungan yang diatur di App Hosting atau file .env.
  */
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
