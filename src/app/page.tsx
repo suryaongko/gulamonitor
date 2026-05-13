@@ -64,22 +64,28 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    addDoc(collection(db, "requests"), requestData)
-      .then(() => {
-        toast({ title: "Permintaan Terkirim", description: `Menunggu persetujuan dari ${targetEmail}.` });
-        setRequestEmail("");
-        setIsDialogOpen(false);
-        setIsSending(false);
-      })
-      .catch(async (error: any) => {
-        console.error("Request Error:", error);
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'requests',
-          operation: 'create',
-          requestResourceData: requestData
-        }));
-        setIsSending(false);
-      });
+    try {
+      addDoc(collection(db, "requests"), requestData)
+        .then(() => {
+          toast({ title: "Permintaan Terkirim", description: `Menunggu persetujuan dari ${targetEmail}.` });
+          setRequestEmail("");
+          setIsDialogOpen(false);
+        })
+        .catch(async (error: any) => {
+          console.error("Request Error:", error);
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'requests',
+            operation: 'create',
+            requestResourceData: requestData
+          }));
+        })
+        .finally(() => {
+          setIsSending(false);
+        });
+    } catch (e) {
+      console.error("Critical Submit Error:", e);
+      setIsSending(false);
+    }
   };
 
   if (loading) {

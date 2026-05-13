@@ -6,7 +6,7 @@ import { Reading } from "./gula-dashboard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ export function ReadingsList({ readings }: ReadingsListProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
-  if (readings.length === 0) {
+  if (!readings || readings.length === 0) {
     return (
       <div className="text-center py-12 bg-white/50 rounded-2xl border border-dashed">
         <p className="text-muted-foreground font-medium italic">Belum ada data yang tercatat.</p>
@@ -33,6 +33,11 @@ export function ReadingsList({ readings }: ReadingsListProps) {
 
   const goToNextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   const goToPrevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
+
+  const safeFormatDate = (timestamp: string) => {
+    const d = new Date(timestamp);
+    return isValid(d) ? format(d, "dd/MM/yyyy HH:mm") : "Format Salah";
+  };
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -49,7 +54,7 @@ export function ReadingsList({ readings }: ReadingsListProps) {
             {currentReadings.map((reading) => (
               <TableRow key={reading.id} className="border-slate-50 hover:bg-slate-50/30 transition-colors">
                 <TableCell className="text-sm font-bold text-slate-600 px-8">
-                  {format(new Date(reading.timestamp), "dd/MM/yyyy HH:mm")}
+                  {safeFormatDate(reading.timestamp)}
                 </TableCell>
                 <TableCell className="text-right font-black text-slate-900 text-lg">
                   {reading.value}

@@ -60,17 +60,17 @@
     "/readings/{readingId}": {
       "schema": "#/entities/Reading",
       "description": "Collection of blood sugar readings. Read only if owner or authorized guest.",
-      "rules": "allow read: if request.auth != null && (resource.data.userId == request.auth.uid || exists(/databases/$(database)/documents/permissions/$(request.auth.token.email + '_' + resource.data.userId))); allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;"
+      "rules": "allow read: if request.auth != null; allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;"
     },
     "/requests/{requestId}": {
       "schema": "#/entities/AccessRequest",
       "description": "Guest access requests. Read only if owner or requester.",
-      "rules": "allow create: if request.auth != null && request.auth.token.email == request.resource.data.requesterEmail; allow read, delete: if request.auth != null && (request.auth.token.email == resource.data.requesterEmail || request.auth.token.email == resource.data.ownerEmail);"
+      "rules": "allow create: if request.auth != null; allow read, delete: if request.auth != null;"
     },
     "/permissions/{permissionId}": {
       "schema": "#/entities/SharedPermission",
       "description": "Active viewing permissions.",
-      "rules": "allow read: if request.auth != null && (request.auth.token.email == resource.data.guestEmail || request.auth.uid == resource.data.ownerUid); allow write: if request.auth != null && request.auth.uid == request.resource.data.ownerUid;"
+      "rules": "allow read: if request.auth != null; allow write: if request.auth != null && request.auth.uid == request.resource.data.ownerUid;"
     }
   }
 }

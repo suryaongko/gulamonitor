@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Loader2, UserCheck, UserPlus, Trash2, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 
 export function SharedAccessManager() {
   const db = useFirestore();
@@ -77,6 +77,12 @@ export function SharedAccessManager() {
     }
   };
 
+  const safeFormatDate = (timestamp: string) => {
+    if (!timestamp) return "Baru saja";
+    const d = new Date(timestamp);
+    return isValid(d) ? format(d, "dd MMM yyyy, HH:mm") : "Format Salah";
+  };
+
   if (loadingRequests || loadingPermissions) {
     return (
       <div className="flex flex-col items-center justify-center p-20 gap-4">
@@ -112,7 +118,7 @@ export function SharedAccessManager() {
                     <div>
                       <p className="font-bold text-slate-800">{req.requesterEmail || "User"}</p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        {req.timestamp ? format(new Date(req.timestamp), "dd MMM yyyy, HH:mm") : "Baru saja"}
+                        {safeFormatDate(req.timestamp)}
                       </p>
                     </div>
                   </div>
