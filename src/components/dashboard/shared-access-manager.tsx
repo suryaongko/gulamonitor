@@ -42,7 +42,6 @@ export function SharedAccessManager() {
   const approveRequest = async (request: any) => {
     if (!db || !user || !userUid) return;
     try {
-      // Gunakan ID unik gabungan requester_owner untuk mencegah duplikasi
       const permId = `${request.requesterEmail}_${userUid}`;
       await setDoc(doc(db, "permissions", permId), {
         ownerUid: userUid,
@@ -50,7 +49,6 @@ export function SharedAccessManager() {
         guestEmail: request.requesterEmail,
         grantedAt: new Date().toISOString()
       });
-      // Hapus permintaan setelah disetujui
       await deleteDoc(doc(db, "requests", request.id));
       toast({ title: "Akses Disetujui", description: `${request.requesterEmail} sekarang bisa memantau data Anda.` });
     } catch (error) {
@@ -112,7 +110,7 @@ export function SharedAccessManager() {
                       <Mail className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="font-bold text-slate-800">{req.requesterEmail}</p>
+                      <p className="font-bold text-slate-800">{req.requesterEmail || "User"}</p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         {req.timestamp ? format(new Date(req.timestamp), "dd MMM yyyy, HH:mm") : "Baru saja"}
                       </p>
@@ -155,7 +153,7 @@ export function SharedAccessManager() {
                       <UserCheck className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="font-bold text-slate-800">{perm.guestEmail}</p>
+                      <p className="font-bold text-slate-800">{perm.guestEmail || "Guest"}</p>
                       <div className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                         <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Akses Aktif</p>

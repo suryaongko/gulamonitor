@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import { GulaDashboard } from "@/components/dashboard/gula-dashboard";
-import { useUser, useAuth, useFirestore } from "@/firebase";
+import { useUser, useAuth, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +13,6 @@ import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
 import { Loader2, LogIn, Send, ShieldCheck, Key, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
 
 export default function Home() {
   const { user, loading } = useUser();
@@ -59,22 +57,29 @@ export default function Home() {
     const targetEmail = requestEmail.toLowerCase().trim();
     const myEmail = user.email.toLowerCase();
 
-    try {
-      await addDoc(collection(db, "requests"), {
-        requesterEmail: myEmail,
-        ownerEmail: targetEmail,
-        status: "pending",
-        timestamp: new Date().toISOString()
+    const requestData = {
+      requesterEmail: myEmail,
+      ownerEmail: targetEmail,
+      status: "pending",
+      timestamp: new Date().toISOString()
+    };
+
+    addDoc(collection(db, "requests"), requestData)
+      .then(() => {
+        toast({ title: "Permintaan Terkirim", description: `Menunggu persetujuan dari ${targetEmail}.` });
+        setRequestEmail("");
+        setIsDialogOpen(false);
+        setIsSending(false);
+      })
+      .catch(async (error: any) => {
+        console.error("Request Error:", error);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'requests',
+          operation: 'create',
+          requestResourceData: requestData
+        }));
+        setIsSending(false);
       });
-      toast({ title: "Permintaan Terkirim", description: `Menunggu persetujuan dari ${targetEmail}.` });
-      setRequestEmail("");
-      setIsDialogOpen(false);
-    } catch (error: any) {
-      console.error("Request Error:", error);
-      toast({ title: "Gagal Mengirim", description: "Terjadi masalah pada server. Coba lagi nanti.", variant: "destructive" });
-    } finally {
-      setIsSending(false);
-    }
   };
 
   if (loading) {

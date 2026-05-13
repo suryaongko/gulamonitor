@@ -65,7 +65,7 @@
     "/requests/{requestId}": {
       "schema": "#/entities/AccessRequest",
       "description": "Guest access requests. Read only if owner or requester.",
-      "rules": "allow read, write: if request.auth != null && (request.auth.token.email == resource.data.requesterEmail || request.auth.token.email == resource.data.ownerEmail);"
+      "rules": "allow create: if request.auth != null && request.auth.token.email == request.resource.data.requesterEmail; allow read, delete: if request.auth != null && (request.auth.token.email == resource.data.requesterEmail || request.auth.token.email == resource.data.ownerEmail);"
     },
     "/permissions/{permissionId}": {
       "schema": "#/entities/SharedPermission",
