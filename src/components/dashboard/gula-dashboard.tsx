@@ -13,7 +13,7 @@ import { SharedAccessManager } from "./shared-access-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock } from "lucide-react";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -38,18 +38,18 @@ export function GulaDashboard() {
   const [timeFilter, setTimeFilter] = useState<'all' | '24h'>('all');
   const [viewingOwner, setViewingOwner] = useState<{uid: string, email: string} | null>(null);
 
-  const userEmail = user?.email?.toLowerCase() || "";
+  const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
-  // Query for permissions granted to current logged in user
+  // Query izin yang diberikan KE SAYA (untuk tamu melihat data orang lain)
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
   }, [db, userEmail]);
   
-  const { data: sharedPermissions } = useCollection(sharedAccessQuery);
+  const { data: sharedPermissions, loading: loadingPerms } = useCollection(sharedAccessQuery);
 
-  // Determine whose data we are currently viewing
+  // UID data yang sedang dilihat
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
   const readingsQuery = useMemo(() => {
@@ -62,11 +62,10 @@ export function GulaDashboard() {
     );
   }, [db, currentUid]);
 
-  const { data: readingsData, loading } = useCollection(readingsQuery);
+  const { data: readingsData, loading: loadingReadings } = useCollection(readingsQuery);
 
   const allReadings = useMemo(() => {
-    if (!readingsData) return [];
-    return readingsData as Reading[];
+    return (readingsData || []) as Reading[];
   }, [readingsData]);
 
   const filteredReadings = useMemo(() => {
@@ -86,7 +85,6 @@ export function GulaDashboard() {
       createdAt: serverTimestamp()
     };
 
-    // Save to Firestore
     addDoc(collection(db, "readings"), payload)
       .catch(async () => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -96,7 +94,6 @@ export function GulaDashboard() {
         }));
       });
 
-    // Send to Google Sheets instantly
     if (APPS_SCRIPT_URL) {
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
@@ -111,7 +108,7 @@ export function GulaDashboard() {
       }).catch(err => console.warn("Sync Warning:", err));
     }
 
-    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets (Waktu Berlin)." });
+    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets (Berlin)." });
   };
 
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
@@ -134,7 +131,7 @@ export function GulaDashboard() {
     });
 
     batch.commit().then(() => {
-      toast({ title: "Sinkronisasi Berhasil", description: `${newItems.length} data baru ditarik dari Google Sheets.` });
+      toast({ title: "Sync Berhasil", description: `${newItems.length} data baru ditarik.` });
     }).catch(async () => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: 'readings',
@@ -143,7 +140,6 @@ export function GulaDashboard() {
     });
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
-  // Auto-sync for the owner on load and every 30s
   useEffect(() => {
     if (!isAppOwner || viewingOwner || !GOOGLE_SHEETS_CSV_URL) return;
 
@@ -189,7 +185,7 @@ export function GulaDashboard() {
     return () => clearInterval(interval);
   }, [isAppOwner, viewingOwner, handleImportedReadings]);
 
-  if (loading && allReadings.length === 0) {
+  if ((loadingPerms || loadingReadings) && allReadings.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -198,20 +194,21 @@ export function GulaDashboard() {
     );
   }
 
+  // Cek apakah tamu tapi belum punya izin sama sekali
   const isGuestWithNoAccess = !isAppOwner && !viewingOwner && (!sharedPermissions || sharedPermissions.length === 0);
 
-  if (isGuestWithNoAccess && !loading) {
+  if (isGuestWithNoAccess && !loadingPerms) {
     return (
-      <div className="max-w-2xl mx-auto py-12 animate-in fade-in slide-in-from-bottom-6">
+      <div className="max-w-2xl mx-auto py-12">
         <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
           <CardContent className="p-16 text-center space-y-8">
-            <div className="w-24 h-24 bg-amber-50 rounded-full flex items-center justify-center mx-auto ring-8 ring-amber-50/50">
+            <div className="w-24 h-24 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
               <Lock className="h-12 w-12 text-amber-600" />
             </div>
             <div className="space-y-3">
               <h2 className="text-4xl font-black text-slate-900">Akses Terbatas</h2>
               <p className="text-slate-500 text-lg font-medium">
-                Akun Anda belum memiliki izin untuk melihat data milik owner. Silakan minta akses pada halaman awal.
+                Akun Anda belum memiliki izin untuk memantau data. Silakan hubungi pemilik data.
               </p>
             </div>
           </CardContent>
@@ -221,7 +218,7 @@ export function GulaDashboard() {
   }
 
   return (
-    <div className="space-y-8 font-body">
+    <div className="space-y-8 font-body animate-in fade-in duration-500">
       {/* Access Switcher Bar */}
       {((sharedPermissions && sharedPermissions.length > 0) || (isAppOwner && sharedPermissions && sharedPermissions.length > 0)) && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
@@ -244,7 +241,7 @@ export function GulaDashboard() {
               variant={viewingOwner?.uid === perm.ownerUid ? "default" : "outline"} 
               size="sm" 
               onClick={() => setViewingOwner({uid: perm.ownerUid, email: perm.ownerEmail})}
-              className="rounded-xl h-10 px-6 gap-2 font-bold transition-all"
+              className="rounded-xl h-10 px-6 gap-2 font-bold"
             >
               <Users className="h-4 w-4" /> {perm.ownerEmail.split('@')[0]}
             </Button>
@@ -253,17 +250,16 @@ export function GulaDashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Main Content Area */}
-        <div className={cn("space-y-8 transition-all duration-500", (isAppOwner && !viewingOwner) ? "lg:col-span-8" : "lg:col-span-12")}>
+        <div className={cn("space-y-8", (isAppOwner && !viewingOwner) ? "lg:col-span-8" : "lg:col-span-12")}>
           <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
           
           <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2.5rem]">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0 px-10 pt-10">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between px-10 pt-10">
               <div className="space-y-1">
                 <CardTitle className="text-2xl font-black flex items-center gap-3 text-slate-800">
                   <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Gula Darah (Waktu Berlin)</p>
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Waktu Berlin (GMT+1)</p>
               </div>
               <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl">
                 <Button 
@@ -294,8 +290,8 @@ export function GulaDashboard() {
               <TabsTrigger value="readings" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
                 <History className="h-4 w-4 mr-2" /> Riwayat
               </TabsTrigger>
-              <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest">
-                <Sparkles className="h-4 w-4 mr-2 text-primary" /> Analisis AI
+              <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-primary">
+                <Sparkles className="h-4 w-4 mr-2" /> Analisis AI
               </TabsTrigger>
               {isAppOwner && !viewingOwner && (
                 <>
@@ -334,7 +330,6 @@ export function GulaDashboard() {
           </Tabs>
         </div>
 
-        {/* Sidebar for Input (Owner Only) */}
         {isAppOwner && !viewingOwner && (
           <div className="lg:col-span-4 space-y-8">
             <Card className="border-none shadow-2xl bg-white rounded-[2.5rem]">
