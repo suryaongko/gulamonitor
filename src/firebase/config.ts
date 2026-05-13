@@ -2,13 +2,8 @@
 
 /**
  * Konfigurasi Firebase App.
- * Pastikan Anda telah mengatur environment variables berikut di dashboard App Hosting:
- * NEXT_PUBLIC_FIREBASE_API_KEY
- * NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
- * NEXT_PUBLIC_FIREBASE_PROJECT_ID
- * NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
- * NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
- * NEXT_PUBLIC_FIREBASE_APP_ID
+ * Nilai-nilai ini diambil dari variabel lingkungan yang diatur di App Hosting.
+ * Jika Anda menjalankan secara lokal, pastikan file .env sudah terisi.
  */
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
