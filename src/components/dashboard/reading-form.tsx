@@ -1,6 +1,7 @@
+
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -11,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { PlusCircle, Loader2 } from "lucide-react";
 
 const readingSchema = z.object({
-  value: z.coerce.number().min(20, "Value too low").max(600, "Value too high"),
+  value: z.coerce.number().min(20, "Nilai terlalu rendah").max(600, "Nilai terlalu tinggi"),
   timestamp: z.string(),
 });
 
@@ -26,14 +27,19 @@ export function ReadingForm({ onAdd }: ReadingFormProps) {
     resolver: zodResolver(readingSchema),
     defaultValues: {
       value: undefined,
-      timestamp: new Date().toISOString().slice(0, 16),
+      timestamp: "", // Gunakan string kosong sebagai nilai awal untuk menghindari hydration mismatch
     },
   });
 
+  // Atur waktu default setelah komponen terpasang di browser
+  useEffect(() => {
+    form.setValue("timestamp", new Date().toISOString().slice(0, 16));
+  }, [form]);
+
   const onSubmit = async (data: z.infer<typeof readingSchema>) => {
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Simulasi delay sedikit agar terasa prosesnya
+    await new Promise((resolve) => setTimeout(resolve, 300));
     onAdd(data.value, data.timestamp);
     form.reset({
       value: undefined,
@@ -50,9 +56,14 @@ export function ReadingForm({ onAdd }: ReadingFormProps) {
           name="value"
           render={({ field }) => (
             <FormItem>
-              <Label>Reading (mg/dL)</Label>
+              <Label>Hasil Gula Darah (mg/dL)</Label>
               <FormControl>
-                <Input type="number" placeholder="Enter value..." {...field} className="rounded-xl border-muted bg-muted/50 focus:bg-white transition-colors" />
+                <Input 
+                  type="number" 
+                  placeholder="Masukkan nilai..." 
+                  {...field} 
+                  className="rounded-xl border-muted bg-muted/50 focus:bg-white transition-colors" 
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -64,18 +75,26 @@ export function ReadingForm({ onAdd }: ReadingFormProps) {
           name="timestamp"
           render={({ field }) => (
             <FormItem>
-              <Label>Date & Time</Label>
+              <Label>Waktu Pengukuran</Label>
               <FormControl>
-                <Input type="datetime-local" {...field} className="rounded-xl border-muted bg-muted/50 focus:bg-white transition-colors" />
+                <Input 
+                  type="datetime-local" 
+                  {...field} 
+                  className="rounded-xl border-muted bg-muted/50 focus:bg-white transition-colors" 
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <Button type="submit" className="w-full rounded-xl gap-2 font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting}>
+        <Button 
+          type="submit" 
+          className="w-full rounded-xl gap-2 font-semibold shadow-lg shadow-primary/20" 
+          disabled={isSubmitting}
+        >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
-          Add Reading
+          Catat Hasil
         </Button>
       </form>
     </Form>

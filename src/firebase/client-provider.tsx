@@ -1,19 +1,37 @@
+
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeFirebase } from './index';
 import { FirebaseProvider } from './provider';
 
+/**
+ * Provider ini memastikan Firebase hanya diinisialisasi di sisi klien (browser).
+ * Hal ini mencegah error "client-side exception" atau "hydration mismatch"
+ * yang sering terjadi jika Firebase diakses selama proses pre-rendering server.
+ */
 export function FirebaseClientProvider({ children }: { children: React.ReactNode }) {
-  const { firebaseApp, firestore, auth } = useMemo(() => initializeFirebase(), []);
+  const [services, setServices] = useState<{
+    firebaseApp: any;
+    firestore: any;
+    auth: any;
+  }>({
+    firebaseApp: null,
+    firestore: null,
+    auth: null,
+  });
 
-  // Jika firebase belum siap, kita tetap render provider namun dengan nilai null
-  // Komponen di dalamnya harus menangani kondisi user/loading dengan benar
+  useEffect(() => {
+    // Jalankan inisialisasi hanya sekali setelah komponen terpasang di browser
+    const initializedServices = initializeFirebase();
+    setServices(initializedServices);
+  }, []);
+
   return (
     <FirebaseProvider 
-      firebaseApp={firebaseApp as any} 
-      firestore={firestore as any} 
-      auth={auth as any}
+      firebaseApp={services.firebaseApp} 
+      firestore={services.firestore} 
+      auth={services.auth}
     >
       {children}
     </FirebaseProvider>
