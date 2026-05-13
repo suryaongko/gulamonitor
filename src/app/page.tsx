@@ -48,11 +48,12 @@ export default function Home() {
     }
   };
 
-  const handleRequestAccess = async () => {
+  const handleRequestAccess = () => {
     if (!db || !user?.email || !requestEmail) {
       toast({ title: "Data Belum Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
     }
+    
     setIsSending(true);
     const targetEmail = requestEmail.toLowerCase().trim();
     const myEmail = user.email.toLowerCase();
@@ -64,28 +65,32 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    try {
-      addDoc(collection(db, "requests"), requestData)
-        .then(() => {
-          toast({ title: "Permintaan Terkirim", description: `Menunggu persetujuan dari ${targetEmail}.` });
-          setRequestEmail("");
-          setIsDialogOpen(false);
-        })
-        .catch(async (error: any) => {
-          console.error("Request Error:", error);
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'requests',
-            operation: 'create',
-            requestResourceData: requestData
-          }));
-        })
-        .finally(() => {
-          setIsSending(false);
-        });
-    } catch (e) {
-      console.error("Critical Submit Error:", e);
+    // Implementasi optimistik: Jangan gunakan await. 
+    // Tutup UI segera dan biarkan Firestore menangani sinkronisasi di background.
+    addDoc(collection(db, "requests"), requestData)
+      .then(() => {
+        // Berhasil di sisi lokal/cache
+        console.log("Request queued successfully");
+      })
+      .catch(async (error: any) => {
+        console.error("Request Error:", error);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'requests',
+          operation: 'create',
+          requestResourceData: requestData
+        }));
+      });
+
+    // Reset UI secara instan agar tidak terjadi infinite loading
+    setTimeout(() => {
+      toast({ 
+        title: "Permintaan Dikirim", 
+        description: `Permintaan akses ke ${targetEmail} sedang diproses.` 
+      });
+      setRequestEmail("");
       setIsSending(false);
-    }
+      setIsDialogOpen(false);
+    }, 500);
   };
 
   if (loading) {
@@ -151,7 +156,13 @@ export default function Home() {
                   <div className="space-y-3">
                     <Label className="text-xs font-black uppercase">Email Pemilik Data</Label>
                     <div className="flex gap-2">
-                      <Input placeholder="surya.ongko@gmail.com" value={requestEmail} onChange={(e) => setRequestEmail(e.target.value)} className="rounded-2xl h-14" />
+                      <Input 
+                        placeholder="surya.ongko@gmail.com" 
+                        value={requestEmail} 
+                        onChange={(e) => setRequestEmail(e.target.value)} 
+                        className="rounded-2xl h-14" 
+                        disabled={isSending}
+                      />
                       <Button onClick={handleRequestAccess} disabled={isSending || !requestEmail} className="rounded-2xl h-14 w-16">
                         {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                       </Button>

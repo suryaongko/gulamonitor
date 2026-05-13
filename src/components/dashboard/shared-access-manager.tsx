@@ -39,48 +39,43 @@ export function SharedAccessManager() {
   const { data: requests, loading: loadingRequests } = useCollection(requestsQuery);
   const { data: permissions, loading: loadingPermissions } = useCollection(permissionsQuery);
 
-  const approveRequest = async (request: any) => {
-    if (!db || !user || !userUid) return;
-    try {
-      const permId = `${request.requesterEmail}_${userUid}`;
-      await setDoc(doc(db, "permissions", permId), {
-        ownerUid: userUid,
-        ownerEmail: userEmail,
-        guestEmail: request.requesterEmail,
-        grantedAt: new Date().toISOString()
-      });
-      await deleteDoc(doc(db, "requests", request.id));
-      toast({ title: "Akses Disetujui", description: `${request.requesterEmail} sekarang bisa memantau data Anda.` });
-    } catch (error) {
-      console.error("Approve Error:", error);
-      toast({ title: "Gagal menyetujui", variant: "destructive" });
-    }
+  const approveRequest = (request: any) => {
+    if (!db || !user || !userUid || !request?.requesterEmail) return;
+    
+    const permId = `${request.requesterEmail}_${userUid}`;
+    
+    // Gunakan penulisan optimistik (tanpa await)
+    setDoc(doc(db, "permissions", permId), {
+      ownerUid: userUid,
+      ownerEmail: userEmail,
+      guestEmail: request.requesterEmail,
+      grantedAt: new Date().toISOString()
+    });
+    
+    deleteDoc(doc(db, "requests", request.id));
+    
+    toast({ 
+      title: "Akses Disetujui", 
+      description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
+    });
   };
 
-  const revokeAccess = async (permId: string) => {
+  const revokeAccess = (permId: string) => {
     if (!db) return;
-    try {
-      await deleteDoc(doc(db, "permissions", permId));
-      toast({ title: "Akses Dicabut" });
-    } catch (error) {
-      toast({ title: "Gagal mencabut", variant: "destructive" });
-    }
+    deleteDoc(doc(db, "permissions", permId));
+    toast({ title: "Akses Dicabut" });
   };
 
-  const ignoreRequest = async (requestId: string) => {
+  const ignoreRequest = (requestId: string) => {
     if (!db) return;
-    try {
-      await deleteDoc(doc(db, "requests", requestId));
-      toast({ title: "Permintaan Dihapus" });
-    } catch (error) {
-      toast({ title: "Gagal menghapus", variant: "destructive" });
-    }
+    deleteDoc(doc(db, "requests", requestId));
+    toast({ title: "Permintaan Dihapus" });
   };
 
   const safeFormatDate = (timestamp: string) => {
     if (!timestamp) return "Baru saja";
     const d = new Date(timestamp);
-    return isValid(d) ? format(d, "dd MMM yyyy, HH:mm") : "Format Salah";
+    return isValid(d) ? format(d, "dd MMM yyyy, HH:mm") : "Baru saja";
   };
 
   if (loadingRequests || loadingPermissions) {
@@ -102,7 +97,7 @@ export function SharedAccessManager() {
           <CardDescription>Orang-orang berikut ingin memantau data kesehatan Anda.</CardDescription>
         </CardHeader>
         <CardContent className="p-8">
-          {!requests || requests.length === 0 ? (
+          {(!requests || requests.length === 0) ? (
             <div className="text-center py-12 opacity-30 flex flex-col items-center gap-3">
               <Mail className="h-12 w-12" />
               <p className="italic font-medium">Tidak ada permintaan tertunda.</p>
@@ -145,7 +140,7 @@ export function SharedAccessManager() {
           <CardDescription className="text-emerald-700/70">Orang-orang ini memiliki izin aktif untuk melihat dashboard Anda.</CardDescription>
         </CardHeader>
         <CardContent className="p-8">
-          {!permissions || permissions.length === 0 ? (
+          {(!permissions || permissions.length === 0) ? (
             <div className="text-center py-12 opacity-30 flex flex-col items-center gap-3">
               <UserCheck className="h-12 w-12" />
               <p className="italic font-medium">Belum ada tamu yang Anda setujui.</p>

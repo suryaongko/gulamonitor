@@ -59,18 +59,15 @@
   "firestore": {
     "/readings/{readingId}": {
       "schema": "#/entities/Reading",
-      "description": "Collection of blood sugar readings. Read only if owner or authorized guest.",
-      "rules": "allow read: if request.auth != null; allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;"
+      "description": "Collection of blood sugar readings."
     },
     "/requests/{requestId}": {
       "schema": "#/entities/AccessRequest",
-      "description": "Guest access requests. Read only if owner or requester.",
-      "rules": "allow create: if request.auth != null; allow read, delete: if request.auth != null;"
+      "description": "Guest access requests."
     },
     "/permissions/{permissionId}": {
       "schema": "#/entities/SharedPermission",
-      "description": "Active viewing permissions.",
-      "rules": "allow read: if request.auth != null; allow write: if request.auth != null && request.auth.uid == request.resource.data.ownerUid;"
+      "description": "Active viewing permissions."
     }
   }
 }
