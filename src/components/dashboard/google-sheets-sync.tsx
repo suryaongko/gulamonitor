@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, Zap } from "lucide-react";
+import { FileSpreadsheet, Loader2, RefreshCw, Zap } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
 import { Switch } from "@/components/ui/switch";
@@ -20,7 +21,7 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
   const [url, setUrl] = useState(defaultUrl || "");
   const [isLoading, setIsLoading] = useState(false);
   const [autoSync, setAutoSync] = useState(initialAutoSync);
-  const hasSyncedOnMount = useRef(false);
+  const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const parseIndonesianDate = (dateStr: string) => {
     if (!dateStr) return null;
@@ -39,15 +40,20 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
   };
 
   const handleSync = useCallback(async (isSilent = false) => {
-    if (!url || !url.includes("docs.google.com/spreadsheets") || !url.includes("output=csv")) {
-      if (!isSilent && url) toast({ title: "URL Tidak Valid", variant: "destructive" });
+    if (!url || !url.includes("docs.google.com/spreadsheets")) {
       return;
     }
 
     if (!isSilent) setIsLoading(true);
     
     try {
-      const response = await fetch(url);
+      // Pastikan URL selalu berakhiran output=csv
+      let fetchUrl = url;
+      if (!fetchUrl.includes("output=csv")) {
+        fetchUrl += (fetchUrl.includes("?") ? "&" : "?") + "output=csv";
+      }
+
+      const response = await fetch(fetchUrl);
       if (!response.ok) throw new Error("Gagal mengambil data dari Google Sheets.");
       
       const csvText = await response.text();
@@ -76,9 +82,6 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
 
       if (importedReadings.length > 0) {
         onImport(importedReadings);
-        if (!isSilent) {
-          toast({ title: "Sinkronisasi Berhasil", description: `${importedReadings.length} data diperbarui.` });
-        }
       }
     } catch (error: any) {
       if (!isSilent) {
@@ -89,12 +92,20 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
     }
   }, [url, onImport]);
 
-  // Immediate sync on mount if autoSync is on
+  // Sync otomatis saat mount dan interval berkala jika autoSync aktif
   useEffect(() => {
-    if (autoSync && url && !hasSyncedOnMount.current) {
-      handleSync(true);
-      hasSyncedOnMount.current = true;
+    if (autoSync && url) {
+      handleSync(true); // Sync pertama kali
+      
+      // Setup interval sinkronisasi setiap 1 menit (Opsional, untuk real-time lebih baik)
+      syncTimerRef.current = setInterval(() => {
+        handleSync(true);
+      }, 60000);
     }
+
+    return () => {
+      if (syncTimerRef.current) clearInterval(syncTimerRef.current);
+    };
   }, [autoSync, url, handleSync]);
 
   return (
@@ -146,9 +157,9 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
               <Zap className="h-4 w-4 fill-emerald-600" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-bold text-emerald-800">Sinkronisasi Cerdas</p>
+              <p className="text-sm font-bold text-emerald-800">Sinkronisasi Instan</p>
               <p className="text-xs text-emerald-700 leading-relaxed">
-                Aplikasi akan membandingkan data yang ada di Sheets dengan database internal untuk memastikan tidak ada data ganda.
+                Data akan diperbarui secara otomatis di latar belakang tanpa mengganggu aktivitas Anda.
               </p>
             </div>
           </div>

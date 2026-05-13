@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock, Info, AlertCircle } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -38,18 +38,18 @@ export function GulaDashboard() {
   const [timeFilter, setTimeFilter] = useState<'all' | '24h'>('all');
   const [viewingOwner, setViewingOwner] = useState<{uid: string, email: string} | null>(null);
 
-  const isAppOwner = useMemo(() => user?.email?.toLowerCase() === APP_OWNER_EMAIL.toLowerCase(), [user]);
+  const userEmail = user?.email?.toLowerCase() || "";
+  const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
   // Ambil daftar izin yang saya miliki sebagai TAMU
   const sharedAccessQuery = useMemo(() => {
-    if (!db || !user?.email) return null;
-    return query(collection(db, "permissions"), where("guestEmail", "==", user.email));
-  }, [db, user]);
+    if (!db || !userEmail) return null;
+    return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
+  }, [db, userEmail]);
   
   const { data: sharedPermissions } = useCollection(sharedAccessQuery);
 
   // Tentukan UID data mana yang akan ditampilkan
-  // Jika saya owner, default UID saya. Jika saya tamu dan sedang viewing, UID owner tersebut.
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
   // Load readings berdasarkan UID terpilih
@@ -113,22 +113,30 @@ export function GulaDashboard() {
     if (!db || !user || !isAppOwner || viewingOwner) return;
     
     const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
+    const newItems = imported.filter(r => !existingTimestamps.has(r.timestamp));
     
-    let addedCount = 0;
-    for (const r of imported) {
-      if (!existingTimestamps.has(r.timestamp)) {
-        await addDoc(collection(db, "readings"), {
-          value: r.value,
-          timestamp: r.timestamp,
-          userId: user.uid,
-          createdAt: serverTimestamp()
-        });
-        addedCount++;
-      }
-    }
+    if (newItems.length === 0) return;
 
-    if (addedCount > 0) {
-      toast({ title: "Sync Otomatis Berhasil", description: `${addedCount} data baru disinkronkan dari Google Sheets.` });
+    // Gunakan batch untuk efisiensi
+    const batch = writeBatch(db);
+    newItems.forEach(r => {
+      const docRef = doc(collection(db, "readings"));
+      batch.set(docRef, {
+        value: r.value,
+        timestamp: r.timestamp,
+        userId: user.uid,
+        createdAt: serverTimestamp()
+      });
+    });
+
+    try {
+      await batch.commit();
+      toast({ 
+        title: "Sinkronisasi Berhasil", 
+        description: `${newItems.length} data baru ditambahkan dari Google Sheets.` 
+      });
+    } catch (error) {
+      console.error("Batch sync error:", error);
     }
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
@@ -136,12 +144,11 @@ export function GulaDashboard() {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-medium animate-pulse">Memuat data kesehatan...</p>
+        <p className="text-muted-foreground font-medium animate-pulse">Menghubungkan layanan...</p>
       </div>
     );
   }
 
-  // Jika BUKAN owner DAN tidak punya izin akses tamu
   const isGuestWithNoAccess = !isAppOwner && !viewingOwner && (!sharedPermissions || sharedPermissions.length === 0);
 
   if (isGuestWithNoAccess && !loading) {
@@ -155,17 +162,17 @@ export function GulaDashboard() {
             <div className="space-y-2">
               <h2 className="text-3xl font-bold text-slate-900">Akses Terbatas</h2>
               <p className="text-slate-500 text-lg">
-                Anda login sebagai tamu. Silakan minta izin kepada pemilik data untuk melihat grafik gula darah.
+                Anda belum memiliki izin untuk melihat data gula darah owner.
               </p>
             </div>
             <div className="p-6 bg-slate-50 rounded-2xl text-left border border-slate-100">
-              <h3 className="font-bold flex items-center gap-2 mb-2">
-                <Users className="h-5 w-5 text-primary" /> Cara Mendapatkan Akses:
+              <h3 className="font-bold flex items-center gap-2 mb-2 text-primary">
+                <Users className="h-5 w-5" /> Cara Mendapatkan Akses:
               </h3>
               <ol className="text-sm text-slate-600 space-y-2 list-decimal list-inside">
-                <li>Gunakan tombol "Minta Akses Tamu" di bagian atas halaman.</li>
-                <li>Masukkan email pemilik data (surya.ongko@gmail.com).</li>
-                <li>Tunggu hingga pemilik data menyetujui permintaan Anda di dashboard mereka.</li>
+                <li>Gunakan tombol <strong>"Minta Akses Tamu"</strong> di bagian atas.</li>
+                <li>Masukkan email pemilik: <strong>{APP_OWNER_EMAIL}</strong>.</li>
+                <li>Tunggu persetujuan dari pemilik data.</li>
               </ol>
             </div>
           </CardContent>
@@ -176,9 +183,9 @@ export function GulaDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Switcher Akses Bersama (Hanya muncul jika ada izin tamu) */}
+      {/* Switcher Akses Bersama */}
       {sharedPermissions && sharedPermissions.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 p-3 bg-white border border-primary/10 rounded-2xl shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 p-4 bg-white border border-primary/10 rounded-2xl shadow-sm">
           <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-2">Data Terhubung:</span>
           {isAppOwner && (
             <Button 
@@ -212,7 +219,7 @@ export function GulaDashboard() {
             </div>
             <div>
               <p className="font-bold">Mode Pemantauan</p>
-              <p className="text-sm opacity-90">Melihat data {viewingOwner.email} (Hanya Baca)</p>
+              <p className="text-sm opacity-90">Melihat data {viewingOwner.email}</p>
             </div>
           </div>
           {isAppOwner && (
@@ -220,18 +227,6 @@ export function GulaDashboard() {
               <ArrowLeft className="h-4 w-4" /> Kembali ke Data Saya
             </Button>
           )}
-        </div>
-      )}
-
-      {isAppOwner && !viewingOwner && allReadings.length === 0 && !loading && (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-bold text-amber-900">Selamat Datang, Owner!</p>
-            <p className="text-sm text-amber-800">
-              Data Anda masih kosong. Silakan catat secara manual di panel samping atau hubungkan dengan Google Sheets untuk sinkronisasi otomatis.
-            </p>
-          </div>
         </div>
       )}
 
@@ -243,9 +238,9 @@ export function GulaDashboard() {
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0 px-8 pt-8">
               <CardTitle className="text-2xl font-bold flex items-center gap-3 text-slate-800">
                 <Activity className="h-6 w-6 text-primary" />
-                Tren Gula Darah
+                Grafik Gula Darah
               </CardTitle>
-              <div className="flex items-center bg-slate-100 p-1.5 rounded-xl">
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl">
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -264,13 +259,13 @@ export function GulaDashboard() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="px-8 pb-8 min-h-[350px]">
+            <CardContent className="px-4 pb-8 min-h-[400px]">
               <BloodSugarChart readings={filteredReadings} minRange={minRange} maxRange={maxRange} />
             </CardContent>
           </Card>
 
           <Tabs defaultValue="readings" className="w-full">
-            <TabsList className="bg-slate-100 border-none p-1.5 rounded-2xl h-auto flex-wrap gap-1">
+            <TabsList className="bg-slate-100 p-1 rounded-2xl h-auto flex-wrap gap-1">
               <TabsTrigger value="readings" className="flex items-center gap-2 rounded-xl py-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm font-semibold">
                 <History className="h-4 w-4" /> Riwayat
               </TabsTrigger>
@@ -280,7 +275,7 @@ export function GulaDashboard() {
               {isAppOwner && !viewingOwner && (
                 <>
                   <TabsTrigger value="sharing" className="flex items-center gap-2 rounded-xl py-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm font-semibold">
-                    <Users className="h-4 w-4" /> Bagikan
+                    <Users className="h-4 w-4" /> Izin Akses
                   </TabsTrigger>
                   <TabsTrigger value="sync" className="flex items-center gap-2 rounded-xl py-2 px-5 data-[state=active]:bg-white data-[state=active]:shadow-sm font-semibold">
                     <FileSpreadsheet className="h-4 w-4" /> Google Sheets

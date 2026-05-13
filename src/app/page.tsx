@@ -40,17 +40,21 @@ export default function Home() {
   const handleRequestAccess = async () => {
     if (!db || !user?.email || !requestEmail) return;
     setIsSending(true);
+    const targetEmail = requestEmail.toLowerCase().trim();
+    const myEmail = user.email.toLowerCase();
+
     try {
       await addDoc(collection(db, "requests"), {
-        requesterEmail: user.email,
-        ownerEmail: requestEmail.toLowerCase().trim(),
+        requesterEmail: myEmail,
+        ownerEmail: targetEmail,
         status: "pending",
         timestamp: new Date().toISOString()
       });
-      toast({ title: "Permintaan Terkirim", description: `Permintaan akses telah dikirim ke ${requestEmail}.` });
+      toast({ title: "Permintaan Terkirim", description: `Permintaan akses telah dikirim ke ${targetEmail}.` });
       setRequestEmail("");
       setIsDialogOpen(false);
     } catch (error) {
+      console.error("Request access error:", error);
       toast({ title: "Gagal mengirim permintaan", variant: "destructive" });
     } finally {
       setIsSending(false);
@@ -81,7 +85,7 @@ export default function Home() {
             </div>
             <h1 className="text-5xl font-extrabold text-slate-900 tracking-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
             <p className="text-xl text-slate-600 leading-relaxed">
-              Platform pemantauan gula darah terenkripsi dengan izin akses khusus keluarga.
+              Platform pemantauan gula darah aman dengan sistem berbagi akses khusus.
             </p>
             <div className="flex flex-wrap gap-4 justify-center md:justify-start">
               <div className="flex items-center gap-2 text-sm text-slate-500 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
@@ -101,7 +105,7 @@ export default function Home() {
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                 <Button onClick={handleLogin} className="w-full gap-3 rounded-2xl h-14 text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
-                  <LogIn className="h-6 w-6" /> Mulai Sinkronisasi
+                  <LogIn className="h-6 w-6" /> Mulai Sekarang
                 </Button>
                 
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
@@ -109,7 +113,7 @@ export default function Home() {
                     <ShieldCheck className="h-3 w-3" /> Kebijakan Privasi
                   </p>
                   <p className="text-[11px] text-amber-700 leading-tight">
-                    Login diperlukan untuk mengidentifikasi akun. Data hanya akan tampil jika Anda adalah Pemilik atau telah disetujui sebagai Tamu oleh pemilik data.
+                    Hanya Pemilik Data (surya.ongko@gmail.com) atau Tamu yang telah disetujui yang dapat melihat detail kesehatan di platform ini.
                   </p>
                 </div>
               </CardContent>
@@ -130,7 +134,7 @@ export default function Home() {
             </h1>
             <p className="text-muted-foreground font-medium flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              Aktif: {user.displayName || "Pengguna"}
+              Aktif: {user.displayName || user.email}
             </p>
           </div>
           
@@ -145,7 +149,7 @@ export default function Home() {
                 <DialogHeader>
                   <DialogTitle className="text-2xl font-bold text-primary">Minta Akses Tamu</DialogTitle>
                   <DialogDescription className="text-base">
-                    Gunakan fitur ini untuk memantau data orang lain (misal: orang tua atau pasangan).
+                    Gunakan fitur ini untuk memantau data owner.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-6">
@@ -156,7 +160,7 @@ export default function Home() {
                     <div className="flex gap-2">
                       <Input 
                         id="owner-email" 
-                        placeholder="email@pemilikdata.com" 
+                        placeholder="surya.ongko@gmail.com" 
                         value={requestEmail}
                         onChange={(e) => setRequestEmail(e.target.value)}
                         className="rounded-xl h-12 text-lg"
@@ -170,7 +174,7 @@ export default function Home() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      *Akses hanya akan aktif setelah Pemilik Data menyetujui permintaan Anda.
+                      *Akses akan aktif setelah Pemilik Data menyetujui di dashboard mereka.
                     </p>
                   </div>
                 </div>

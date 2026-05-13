@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -12,12 +13,13 @@ import { format } from "date-fns";
 export function SharedAccessManager() {
   const db = useFirestore();
   const { user } = useUser();
+  const userEmail = user?.email?.toLowerCase() || "";
 
   // Ambil permintaan yang dikirim KE SAYA (sebagai pemilik data)
   const requestsQuery = useMemo(() => {
-    if (!db || !user?.email) return null;
-    return query(collection(db, "requests"), where("ownerEmail", "==", user.email), where("status", "==", "pending"));
-  }, [db, user]);
+    if (!db || !userEmail) return null;
+    return query(collection(db, "requests"), where("ownerEmail", "==", userEmail), where("status", "==", "pending"));
+  }, [db, userEmail]);
 
   // Ambil izin yang SUDAH SAYA BERIKAN
   const permissionsQuery = useMemo(() => {
@@ -35,7 +37,7 @@ export function SharedAccessManager() {
       const permId = `${request.requesterEmail}_${user.uid}`;
       await setDoc(doc(db, "permissions", permId), {
         ownerUid: user.uid,
-        ownerEmail: user.email,
+        ownerEmail: userEmail,
         guestEmail: request.requesterEmail,
         grantedAt: new Date().toISOString()
       });
@@ -78,22 +80,22 @@ export function SharedAccessManager() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
       <Card className="border-none shadow-xl bg-white/90 rounded-3xl overflow-hidden">
         <CardHeader className="bg-slate-50 border-b px-8 py-6">
           <CardTitle className="text-xl font-bold flex items-center gap-3 text-slate-800">
             <UserPlus className="h-6 w-6 text-primary" />
-            Permintaan Masuk
+            Permintaan Akses Masuk
           </CardTitle>
           <CardDescription className="text-sm font-medium">
-            Orang-orang berikut ingin memantau profil gula darah Anda.
+            Tinjau siapa saja yang ingin memantau data kesehatan Anda.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-8">
           {requests?.length === 0 ? (
             <div className="text-center py-10">
               <Mail className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-              <p className="text-slate-400 font-medium italic">Tidak ada permintaan akses saat ini.</p>
+              <p className="text-slate-400 font-medium italic">Tidak ada permintaan akses tertunda.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -129,17 +131,17 @@ export function SharedAccessManager() {
         <CardHeader className="bg-emerald-50/50 border-b px-8 py-6">
           <CardTitle className="text-xl font-bold flex items-center gap-3 text-emerald-800">
             <UserCheck className="h-6 w-6 text-emerald-600" />
-            Akses Aktif
+            Daftar Akses Aktif
           </CardTitle>
           <CardDescription className="text-sm font-medium text-emerald-700">
-            Daftar orang yang saat ini memiliki izin untuk melihat data Anda.
+            Daftar tamu yang saat ini dapat memantau data gula darah Anda.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-8">
           {permissions?.length === 0 ? (
             <div className="text-center py-10">
               <Users className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-              <p className="text-slate-400 font-medium italic">Anda belum membagikan akses ke siapapun.</p>
+              <p className="text-slate-400 font-medium italic">Belum ada akses tamu yang dibagikan.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
