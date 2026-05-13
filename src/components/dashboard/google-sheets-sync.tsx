@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileSpreadsheet, Loader2, RefreshCw, Zap } from "lucide-react";
+import { FileSpreadsheet, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
 import { Switch } from "@/components/ui/switch";
@@ -25,7 +25,6 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
 
   const parseBerlinDate = (dateStr: string) => {
     if (!dateStr) return null;
-    // Format diharapkan: DD/MM/YYYY HH:mm:ss atau DD/MM/YYYY HH:mm
     const parts = dateStr.split(/[\/\-\s:]/);
     if (parts.length >= 5) {
       const day = parseInt(parts[0]);

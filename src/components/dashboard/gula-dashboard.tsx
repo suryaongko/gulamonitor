@@ -41,7 +41,6 @@ export function GulaDashboard() {
   const userEmail = user?.email?.toLowerCase() || "";
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
-  // Ambil izin yang diberikan ke user ini
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -49,7 +48,6 @@ export function GulaDashboard() {
   
   const { data: sharedPermissions } = useCollection(sharedAccessQuery);
 
-  // UID target yang datanya ingin dilihat
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
   const readingsQuery = useMemo(() => {
@@ -95,7 +93,6 @@ export function GulaDashboard() {
         }));
       });
 
-    // Kirim ke Google Sheets via Apps Script
     if (APPS_SCRIPT_URL) {
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
@@ -142,7 +139,6 @@ export function GulaDashboard() {
     });
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
-  // Auto-sync dari Google Sheets CSV setiap 30 detik (khusus owner)
   useEffect(() => {
     if (!isAppOwner || viewingOwner || !GOOGLE_SHEETS_CSV_URL) return;
 
@@ -159,7 +155,6 @@ export function GulaDashboard() {
           const timestampStr = columns[0]?.trim();
           if (isNaN(val) || !timestampStr) return null;
           
-          // Parsing DD/MM/YYYY HH:mm:ss atau format ISO
           let dateObj: Date;
           if (timestampStr.includes('/')) {
             const [dmy, hms] = timestampStr.split(' ');
@@ -194,7 +189,6 @@ export function GulaDashboard() {
     );
   }
 
-  // Jika tamu tidak punya izin sama sekali
   const isGuestWithNoAccess = !isAppOwner && !viewingOwner && (!sharedPermissions || sharedPermissions.length === 0);
 
   if (isGuestWithNoAccess && !loading) {

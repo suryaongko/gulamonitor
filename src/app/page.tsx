@@ -24,7 +24,6 @@ export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [initialAction, setInitialAction] = useState<'login' | 'request' | null>(null);
 
-  // Jika user baru login dan sebelumnya memilih 'request', buka dialog secara otomatis
   useEffect(() => {
     if (user && initialAction === 'request') {
       setIsDialogOpen(true);
@@ -34,7 +33,7 @@ export default function Home() {
 
   const handleAuth = async (action: 'login' | 'request') => {
     if (!auth) {
-      toast({ title: "Firebase Belum Siap", description: "Pastikan API Key sudah terpasang di App Hosting.", variant: "destructive" });
+      toast({ title: "Firebase Belum Siap", description: "Pastikan API Key sudah terpasang.", variant: "destructive" });
       return;
     }
     setInitialAction(action);
@@ -60,7 +59,7 @@ export default function Home() {
         status: "pending",
         timestamp: new Date().toISOString()
       });
-      toast({ title: "Permintaan Terkirim", description: `Permintaan akses telah dikirim ke ${targetEmail}. Tunggu persetujuan untuk melihat data.` });
+      toast({ title: "Permintaan Terkirim", description: `Permintaan akses telah dikirim ke ${targetEmail}. Tunggu persetujuan.` });
       setRequestEmail("");
       setIsDialogOpen(false);
     } catch (error) {
@@ -98,30 +97,19 @@ export default function Home() {
                 Sistem pemantauan kesehatan tersinkronisasi. Aman, privat, dan terkendali.
               </p>
             </div>
-            
-            <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-              <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-100">
-                <Lock className="h-5 w-5 text-green-500" />
-                <span className="text-sm font-bold text-slate-700">Privasi Terjamin</span>
-              </div>
-              <div className="flex items-center gap-3 bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-100">
-                <Users className="h-5 w-5 text-primary" />
-                <span className="text-sm font-bold text-slate-700">Akses Terkelola</span>
-              </div>
-            </div>
           </div>
 
           <div className="grid gap-6">
             <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 backdrop-blur-xl">
               <CardHeader className="p-8 text-center space-y-2">
                 <CardTitle className="text-3xl font-black text-slate-800">Pilih Akses</CardTitle>
-                <CardDescription className="text-base">Gunakan akun Google Anda untuk masuk</CardDescription>
+                <CardDescription className="text-base">Gunakan akun Google Anda</CardDescription>
               </CardHeader>
               <CardContent className="p-8 pt-0 space-y-4">
                 <div className="grid gap-4">
                   <Button 
                     onClick={() => handleAuth('login')} 
-                    className="w-full h-16 rounded-2xl text-lg font-bold gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+                    className="w-full h-16 rounded-2xl text-lg font-bold gap-3 shadow-lg shadow-primary/20 transition-all"
                   >
                     <LogIn className="h-6 w-6" /> Login (Owner / Guest)
                   </Button>
@@ -134,21 +122,10 @@ export default function Home() {
                   <Button 
                     variant="outline"
                     onClick={() => handleAuth('request')} 
-                    className="w-full h-16 rounded-2xl text-lg font-bold gap-3 border-2 border-primary/10 hover:bg-primary/5 hover:border-primary/30 transition-all"
+                    className="w-full h-16 rounded-2xl text-lg font-bold gap-3 border-2 border-primary/10 hover:bg-primary/5 transition-all"
                   >
                     <Key className="h-6 w-6 text-primary" /> Minta Akses Baru
                   </Button>
-                </div>
-
-                <div className="mt-8 p-6 bg-slate-50 rounded-3xl space-y-3">
-                  <div className="flex items-center gap-2 text-primary">
-                    <ShieldCheck className="h-4 w-4" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Informasi Keamanan</span>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                    Owner: <strong>surya.ongko@gmail.com</strong>. <br/>
-                    Tamu harus melakukan login Google terlebih dahulu untuk mengirimkan permintaan akses yang valid.
-                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -167,7 +144,6 @@ export default function Home() {
               <ShieldCheck className="h-8 w-8" /> GulaMonitor
             </h1>
             <p className="text-muted-foreground font-bold flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               Aktif: {user.displayName || user.email}
             </p>
           </div>
@@ -182,9 +158,6 @@ export default function Home() {
               <DialogContent className="rounded-[2rem] sm:max-w-md p-8">
                 <DialogHeader className="space-y-3">
                   <DialogTitle className="text-3xl font-black text-primary">Kirim Permintaan</DialogTitle>
-                  <DialogDescription className="text-base font-medium">
-                    Masukkan email pemilik data yang ingin Anda pantau.
-                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 py-6">
                   <div className="space-y-3">
@@ -197,13 +170,9 @@ export default function Home() {
                         placeholder="surya.ongko@gmail.com" 
                         value={requestEmail}
                         onChange={(e) => setRequestEmail(e.target.value)}
-                        className="rounded-2xl h-14 text-lg font-medium bg-slate-50 border-none focus:ring-2 focus:ring-primary"
+                        className="rounded-2xl h-14 text-lg font-medium bg-slate-50 border-none"
                       />
-                      <Button 
-                        onClick={handleRequestAccess} 
-                        disabled={isSending || !requestEmail} 
-                        className="rounded-2xl h-14 w-16 shadow-lg shadow-primary/20"
-                      >
+                      <Button onClick={handleRequestAccess} disabled={isSending || !requestEmail} className="rounded-2xl h-14 w-16">
                         {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                       </Button>
                     </div>
@@ -212,7 +181,7 @@ export default function Home() {
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" onClick={handleLogout} className="rounded-xl gap-2 h-12 px-6 border-red-100 text-red-600 hover:bg-red-50 font-bold">
+            <Button variant="outline" onClick={handleLogout} className="rounded-xl gap-2 h-12 px-6 border-red-100 text-red-600 font-bold">
               <ArrowRight className="h-4 w-4" /> Keluar
             </Button>
           </div>

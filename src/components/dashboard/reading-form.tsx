@@ -32,7 +32,6 @@ export function ReadingForm({ onAdd }: ReadingFormProps) {
   });
 
   useEffect(() => {
-    // Set default local time in YYYY-MM-DDTHH:mm format for input
     const now = new Date();
     const tzOffset = now.getTimezoneOffset() * 60000;
     const localISOTime = new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
@@ -41,9 +40,6 @@ export function ReadingForm({ onAdd }: ReadingFormProps) {
 
   const onSubmit = async (data: z.infer<typeof readingSchema>) => {
     setIsSubmitting(true);
-    
-    // Konversi local input time (YYYY-MM-DDTHH:mm) ke ISO String lengkap (UTC)
-    // agar Google Sheets tidak salah menafsirkan jamnya.
     const isoTimestamp = new Date(data.timestamp).toISOString();
     
     await new Promise((resolve) => setTimeout(resolve, 300));
