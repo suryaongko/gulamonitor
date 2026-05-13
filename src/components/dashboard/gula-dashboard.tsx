@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -10,9 +11,9 @@ import { BloodSugarChart } from "./blood-sugar-chart";
 import { GoogleSheetsSync } from "./google-sheets-sync";
 import { SharedAccessManager } from "./shared-access-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock, Info } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, getDocs } from "firebase/firestore";
 import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -88,7 +89,6 @@ export function GulaDashboard() {
         createdAt: serverTimestamp()
       });
 
-      // Sync ke Apps Script (Hanya jika data milik sendiri)
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
         mode: "no-cors",
@@ -108,8 +108,6 @@ export function GulaDashboard() {
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
     if (!db || !user || viewingOwner) return;
     
-    // Check for existing readings to avoid duplicates
-    // We'll just check timestamps for this simple implementation
     const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
     
     let addedCount = 0;
@@ -132,9 +130,68 @@ export function GulaDashboard() {
 
   if (loading && allReadings.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-medium">Mengambil data kesehatan...</p>
+        <p className="text-muted-foreground font-medium animate-pulse">Memverifikasi izin akses...</p>
+      </div>
+    );
+  }
+
+  // Jika tidak ada data sendiri DAN tidak ada izin akses tamu, tampilkan Welcome State
+  const hasNoDataAndNoAccess = allReadings.length === 0 && (!sharedPermissions || sharedPermissions.length === 0);
+
+  if (hasNoDataAndNoAccess && !loading) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 space-y-8 animate-in fade-in slide-in-from-bottom-4">
+        <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden">
+          <CardContent className="p-12 text-center space-y-6">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+              <Lock className="h-10 w-10 text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-3xl font-bold text-slate-900">Akses Terbatas</h2>
+              <p className="text-slate-500 text-lg">
+                Anda belum memiliki data pribadi atau izin untuk melihat data orang lain.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+              <Card className="bg-slate-50 border-none p-6 text-left space-y-3">
+                <div className="p-2 bg-primary/10 w-fit rounded-lg text-primary">
+                  <Activity className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold">Mulai Sebagai Pemilik</h3>
+                <p className="text-xs text-slate-500">Gunakan form di samping kanan dashboard untuk mulai mencatat data Anda sendiri.</p>
+              </Card>
+              <Card className="bg-slate-50 border-none p-6 text-left space-y-3">
+                <div className="p-2 bg-secondary/10 w-fit rounded-lg text-secondary">
+                  <Users className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold">Mulai Sebagai Tamu</h3>
+                <p className="text-xs text-slate-500">Gunakan tombol "Minta Akses Tamu" di header untuk meminta izin melihat data keluarga.</p>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tetap tampilkan form input agar Owner baru bisa mulai mengisi */}
+        <div className="grid md:grid-cols-2 gap-8">
+          <Card className="border-none shadow-xl bg-white rounded-3xl p-8">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" /> Catat Pertama Kali
+            </h3>
+            <ReadingForm onAdd={addReading} />
+          </Card>
+          <Card className="border-none shadow-xl bg-white rounded-3xl p-8">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Info className="h-5 w-5 text-primary" /> Petunjuk
+            </h3>
+            <ul className="space-y-3 text-sm text-slate-600">
+              <li className="flex gap-2">• Data akan tersimpan aman di database cloud.</li>
+              <li className="flex gap-2">• Aktifkan Google Sheets Sync di tab Google Sheets.</li>
+              <li className="flex gap-2">• Bagikan data Anda ke orang lain di tab "Bagikan".</li>
+            </ul>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -144,14 +201,14 @@ export function GulaDashboard() {
       {/* Switcher Akses Bersama */}
       {sharedPermissions && sharedPermissions.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 p-3 bg-white border border-primary/10 rounded-2xl shadow-sm">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-2">Lihat Data:</span>
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-2">Data Terproteksi:</span>
           <Button 
             variant={!viewingOwner ? "default" : "outline"} 
             size="sm" 
             onClick={() => setViewingOwner(null)}
             className="rounded-xl h-9 px-4 font-semibold"
           >
-            Saya
+            Milik Saya
           </Button>
           {sharedPermissions.map((perm: any) => (
             <Button 

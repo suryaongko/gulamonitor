@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -10,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
-import { Loader2, LogIn, LogOut, Users, Send, ShieldCheck, Eye } from "lucide-react";
+import { Loader2, LogIn, LogOut, Users, Send, ShieldCheck, Eye, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -80,39 +81,36 @@ export default function Home() {
             </div>
             <h1 className="text-5xl font-extrabold text-slate-900 tracking-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
             <p className="text-xl text-slate-600 leading-relaxed">
-              Platform pemantauan gula darah yang aman, tersinkronisasi dengan Google Sheets, dan mendukung akses berbagi keluarga.
+              Platform pemantauan gula darah terenkripsi dengan izin akses khusus keluarga.
             </p>
+            <div className="flex flex-wrap gap-4 justify-center md:justify-start">
+              <div className="flex items-center gap-2 text-sm text-slate-500 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
+                <Lock className="h-4 w-4 text-green-500" /> Izin Berbasis Email
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-500 font-medium bg-white px-4 py-2 rounded-full shadow-sm">
+                <Eye className="h-4 w-4 text-primary" /> Pantauan Tamu
+              </div>
+            </div>
           </div>
 
           <div className="space-y-4">
             <Card className="border-none shadow-2xl rounded-3xl overflow-hidden">
               <CardHeader className="bg-primary text-white p-8">
-                <CardTitle className="text-2xl">Selamat Datang</CardTitle>
-                <CardDescription className="text-primary-foreground/80">Silakan masuk untuk melanjutkan</CardDescription>
+                <CardTitle className="text-2xl">Akses Kesehatan</CardTitle>
+                <CardDescription className="text-primary-foreground/80">Keamanan data Anda adalah prioritas kami</CardDescription>
               </CardHeader>
               <CardContent className="p-8 space-y-6">
-                <div className="grid gap-4">
-                  <Button onClick={handleLogin} className="w-full gap-3 rounded-2xl h-14 text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
-                    <LogIn className="h-6 w-6" /> Masuk sebagai Pemilik / Tamu
-                  </Button>
-                </div>
+                <Button onClick={handleLogin} className="w-full gap-3 rounded-2xl h-14 text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
+                  <LogIn className="h-6 w-6" /> Mulai Sinkronisasi
+                </Button>
                 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t"></span></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-muted-foreground">Informasi Akses</span></div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-2xl text-center space-y-2">
-                    <Users className="h-6 w-6 mx-auto text-primary" />
-                    <p className="text-xs font-bold text-slate-700">Owner</p>
-                    <p className="text-[10px] text-muted-foreground">Kelola data pribadi Anda</p>
-                  </div>
-                  <div className="p-4 bg-slate-50 rounded-2xl text-center space-y-2">
-                    <Eye className="h-6 w-6 mx-auto text-secondary" />
-                    <p className="text-xs font-bold text-slate-700">Guest</p>
-                    <p className="text-[10px] text-muted-foreground">Pantau data keluarga</p>
-                  </div>
+                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-2">
+                  <p className="text-xs font-bold text-amber-800 uppercase flex items-center gap-2">
+                    <ShieldCheck className="h-3 w-3" /> Kebijakan Privasi
+                  </p>
+                  <p className="text-[11px] text-amber-700 leading-tight">
+                    Login diperlukan untuk mengidentifikasi akun. Data hanya akan tampil jika Anda adalah Pemilik atau telah disetujui sebagai Tamu oleh pemilik data.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -130,7 +128,10 @@ export default function Home() {
             <h1 className="text-3xl font-extrabold text-primary tracking-tight flex items-center gap-2">
               <ShieldCheck className="h-8 w-8" /> GulaMonitor
             </h1>
-            <p className="text-muted-foreground font-medium">Aktif: {user.displayName} ({user.email})</p>
+            <p className="text-muted-foreground font-medium flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              Aktif: {user.displayName || "Pengguna"}
+            </p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
@@ -169,7 +170,7 @@ export default function Home() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      *Pemilik data harus menyetujui permintaan Anda melalui menu "Bagikan" di dashboard mereka.
+                      *Akses hanya akan aktif setelah Pemilik Data menyetujui permintaan Anda.
                     </p>
                   </div>
                 </div>
