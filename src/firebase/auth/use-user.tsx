@@ -10,7 +10,12 @@ export function useUser() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth) return;
+    // Jika auth null (karena config belum diset), kita berhenti loading
+    // agar UI bisa menampilkan halaman login atau pesan error.
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
