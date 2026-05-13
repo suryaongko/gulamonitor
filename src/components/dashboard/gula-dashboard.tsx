@@ -13,7 +13,7 @@ import { SharedAccessManager } from "./shared-access-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ArrowLeft, ShieldAlert, Lock } from "lucide-react";
+import { Activity, History, Settings, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,7 @@ export function GulaDashboard() {
   const userEmail = user?.email?.toLowerCase() || "";
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
+  // Ambil izin yang diberikan ke user ini
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -48,6 +49,7 @@ export function GulaDashboard() {
   
   const { data: sharedPermissions } = useCollection(sharedAccessQuery);
 
+  // UID target yang datanya ingin dilihat
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
   const readingsQuery = useMemo(() => {
@@ -93,12 +95,18 @@ export function GulaDashboard() {
         }));
       });
 
+    // Kirim ke Google Sheets via Apps Script
     if (APPS_SCRIPT_URL) {
       fetch(APPS_SCRIPT_URL, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ value, timestamp, userEmail: user.email }),
+        body: JSON.stringify({ 
+          value, 
+          timestamp, 
+          userEmail: user.email,
+          timezone: "Europe/Berlin"
+        }),
       }).catch(err => console.warn("Sync Warning:", err));
     }
 
@@ -134,6 +142,7 @@ export function GulaDashboard() {
     });
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
+  // Auto-sync dari Google Sheets CSV setiap 30 detik (khusus owner)
   useEffect(() => {
     if (!isAppOwner || viewingOwner || !GOOGLE_SHEETS_CSV_URL) return;
 
@@ -147,9 +156,22 @@ export function GulaDashboard() {
         const importedReadings: Reading[] = rows.slice(1).map(row => {
           const columns = row.includes(";") ? row.split(";") : row.split(",");
           const val = parseFloat(columns[1]?.replace(",", ".") || "0");
-          const date = new Date(columns[0]);
-          if (isNaN(val) || isNaN(date.getTime())) return null;
-          return { id: date.getTime().toString(), value: val, timestamp: date.toISOString() };
+          const timestampStr = columns[0]?.trim();
+          if (isNaN(val) || !timestampStr) return null;
+          
+          // Parsing DD/MM/YYYY HH:mm:ss atau format ISO
+          let dateObj: Date;
+          if (timestampStr.includes('/')) {
+            const [dmy, hms] = timestampStr.split(' ');
+            const [d, m, y] = dmy.split('/');
+            const [h, min, s] = (hms || "00:00:00").split(':');
+            dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d), parseInt(h), parseInt(min), parseInt(s || "0"));
+          } else {
+            dateObj = new Date(timestampStr);
+          }
+
+          if (isNaN(dateObj.getTime())) return null;
+          return { id: dateObj.getTime().toString(), value: val, timestamp: dateObj.toISOString() };
         }).filter((r): r is Reading => r !== null);
 
         handleImportedReadings(importedReadings);
@@ -159,7 +181,7 @@ export function GulaDashboard() {
     };
 
     triggerAutoSync();
-    const interval = setInterval(triggerAutoSync, 30000); // Poll every 30 seconds
+    const interval = setInterval(triggerAutoSync, 30000);
     return () => clearInterval(interval);
   }, [isAppOwner, viewingOwner, handleImportedReadings]);
 
@@ -172,6 +194,7 @@ export function GulaDashboard() {
     );
   }
 
+  // Jika tamu tidak punya izin sama sekali
   const isGuestWithNoAccess = !isAppOwner && !viewingOwner && (!sharedPermissions || sharedPermissions.length === 0);
 
   if (isGuestWithNoAccess && !loading) {
@@ -185,7 +208,7 @@ export function GulaDashboard() {
             <div className="space-y-3">
               <h2 className="text-4xl font-black text-slate-900">Akses Terbatas</h2>
               <p className="text-slate-500 text-lg font-medium">
-                Akun Anda belum memiliki izin untuk melihat data milik owner.
+                Akun Anda belum memiliki izin untuk melihat data milik owner. Silakan minta akses pada halaman awal.
               </p>
             </div>
           </CardContent>
@@ -196,7 +219,7 @@ export function GulaDashboard() {
 
   return (
     <div className="space-y-8 font-body">
-      {(sharedPermissions && sharedPermissions.length > 0) && (
+      {((sharedPermissions && sharedPermissions.length > 0) || (isAppOwner && sharedPermissions && sharedPermissions.length > 0)) && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
             <ShieldAlert className="h-3 w-3" /> Sumber Data:
@@ -211,7 +234,7 @@ export function GulaDashboard() {
               Data Saya
             </Button>
           )}
-          {sharedPermissions.map((perm: any) => (
+          {sharedPermissions?.map((perm: any) => (
             <Button 
               key={perm.id}
               variant={viewingOwner?.uid === perm.ownerUid ? "default" : "outline"} 
@@ -235,7 +258,7 @@ export function GulaDashboard() {
                 <CardTitle className="text-2xl font-black flex items-center gap-3 text-slate-800">
                   <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Gula Darah</p>
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Gula Darah (Waktu Berlin)</p>
               </div>
               <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl">
                 <Button 

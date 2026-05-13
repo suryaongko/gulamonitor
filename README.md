@@ -1,5 +1,5 @@
 
-# GulaMonitor - Health Sync
+# GulaMonitor - Health Sync (Berlin Time)
 
 Aplikasi pemantauan gula darah pribadi yang tersinkronisasi secara instan dengan Google Sheets.
 
@@ -7,12 +7,10 @@ Aplikasi pemantauan gula darah pribadi yang tersinkronisasi secara instan dengan
 
 ## 📊 SETUP SINKRONISASI GOOGLE SHEETS (WAJIB)
 
-Agar data dari aplikasi langsung terupdate di Google Sheets dan bisa dibaca kembali oleh aplikasi, lakukan langkah berikut:
-
 ### 1. Pasang Script Penerima Data
 1. Buka file Google Sheets Anda.
 2. Klik menu **Extensions** -> **Apps Script**.
-3. Hapus semua kode yang ada, dan tempel kode berikut (Zona Waktu: Berlin):
+3. Hapus semua kode yang ada, dan tempel kode berikut:
 
 ```javascript
 function doPost(e) {
@@ -31,7 +29,7 @@ function doPost(e) {
     // Parsing timestamp (ISO String)
     var timestamp = new Date(data.timestamp);
     
-    // Format tanggal Berlin: DD/MM/YYYY HH:mm:ss
+    // Zona Waktu: Berlin (Europe/Berlin)
     var formattedDate = Utilities.formatDate(timestamp, "Europe/Berlin", "dd/MM/yyyy HH:mm:ss");
     
     // Masukkan baris baru: Tanggal, Nilai, Email
@@ -51,7 +49,7 @@ function doPost(e) {
 8. Who has access: **Anyone**.
 9. Klik **Deploy**. Salin **Web App URL** dan tempel ke variabel `APPS_SCRIPT_URL` di `src/components/dashboard/gula-dashboard.tsx`.
 
-### 2. Publikasikan CSV (Agar Aplikasi Bisa Membaca Data)
+### 2. Publikasikan CSV
 1. Di Google Sheets, klik **File** -> **Share** -> **Publish to web**.
 2. Pilih format **Comma-separated values (.csv)**.
 3. Klik **Publish**. Salin link yang muncul dan tempel ke `GOOGLE_SHEETS_CSV_URL` di `src/components/dashboard/gula-dashboard.tsx`.
@@ -59,5 +57,5 @@ function doPost(e) {
 ---
 
 ## 🛡️ HAK AKSES
-- **Owner (surya.ongko@gmail.com)**: Memiliki akses penuh.
+- **Owner (surya.ongko@gmail.com)**: Memiliki akses penuh (Input data, Sync, Sharing).
 - **Guest**: Hanya bisa melihat data owner jika sudah disetujui.
