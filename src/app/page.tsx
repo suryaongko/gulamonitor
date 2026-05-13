@@ -65,12 +65,15 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    // Implementasi optimistik: Jangan gunakan await. 
-    // Tutup UI segera dan biarkan Firestore menangani sinkronisasi di background.
+    // Kirim data ke Firestore
     addDoc(collection(db, "requests"), requestData)
       .then(() => {
-        // Berhasil di sisi lokal/cache
-        console.log("Request queued successfully");
+        toast({ 
+          title: "Berhasil Terkirim", 
+          description: `Permintaan akses ke ${targetEmail} telah dicatat. Mohon tunggu persetujuan pemilik.` 
+        });
+        setRequestEmail("");
+        setIsDialogOpen(false);
       })
       .catch(async (error: any) => {
         console.error("Request Error:", error);
@@ -79,18 +82,15 @@ export default function Home() {
           operation: 'create',
           requestResourceData: requestData
         }));
+        toast({ 
+          title: "Gagal Mengirim", 
+          description: "Database menolak permintaan. Pastikan akun Anda sudah benar.",
+          variant: "destructive" 
+        });
+      })
+      .finally(() => {
+        setIsSending(false);
       });
-
-    // Reset UI secara instan agar tidak terjadi infinite loading
-    setTimeout(() => {
-      toast({ 
-        title: "Permintaan Dikirim", 
-        description: `Permintaan akses ke ${targetEmail} sedang diproses.` 
-      });
-      setRequestEmail("");
-      setIsSending(false);
-      setIsDialogOpen(false);
-    }, 500);
   };
 
   if (loading) {

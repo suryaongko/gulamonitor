@@ -44,19 +44,17 @@ export function SharedAccessManager() {
     
     const permId = `${request.requesterEmail}_${userUid}`;
     
-    // Gunakan penulisan optimistik (tanpa await)
     setDoc(doc(db, "permissions", permId), {
       ownerUid: userUid,
       ownerEmail: userEmail,
       guestEmail: request.requesterEmail,
       grantedAt: new Date().toISOString()
-    });
-    
-    deleteDoc(doc(db, "requests", request.id));
-    
-    toast({ 
-      title: "Akses Disetujui", 
-      description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
+    }).then(() => {
+      deleteDoc(doc(db, "requests", request.id));
+      toast({ 
+        title: "Akses Disetujui", 
+        description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
+      });
     });
   };
 
