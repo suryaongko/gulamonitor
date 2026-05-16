@@ -17,17 +17,16 @@ export function SharedAccessManager() {
   const userEmail = useMemo(() => user?.email?.toLowerCase().trim() || "", [user]);
   const userUid = useMemo(() => user?.uid || "", [user]);
 
-  // Permintaan yang dikirim ke saya (Saya adalah Owner)
+  // Kueri yang disederhanakan: Hanya berdasarkan ownerEmail.
+  // Memfilter status 'pending' dilakukan di sisi klien untuk menghindari kebutuhan Composite Index Firestore.
   const requestsQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(
       collection(db, "requests"), 
-      where("ownerEmail", "==", userEmail), 
-      where("status", "==", "pending")
+      where("ownerEmail", "==", userEmail)
     );
   }, [db, userEmail]);
 
-  // Izin yang pernah saya berikan (Saya adalah Owner)
   const permissionsQuery = useMemo(() => {
     if (!db || !userUid) return null;
     return query(
@@ -36,8 +35,13 @@ export function SharedAccessManager() {
     );
   }, [db, userUid]);
 
-  const { data: requests, loading: loadingRequests } = useCollection(requestsQuery);
+  const { data: rawRequests, loading: loadingRequests } = useCollection(requestsQuery);
   const { data: permissions, loading: loadingPermissions } = useCollection(permissionsQuery);
+
+  // Filter permintaan yang statusnya 'pending' secara lokal
+  const requests = useMemo(() => {
+    return (rawRequests || []).filter((req: any) => req.status === "pending");
+  }, [rawRequests]);
 
   const approveRequest = (request: any) => {
     if (!db || !user || !userUid || !request?.requesterEmail) return;
@@ -46,7 +50,6 @@ export function SharedAccessManager() {
     const permissionsRef = doc(db, "permissions", permId);
     const requestsRef = doc(db, "requests", request.id);
     
-    // Mutasi non-blocking
     setDoc(permissionsRef, {
       ownerUid: userUid,
       ownerEmail: userEmail,

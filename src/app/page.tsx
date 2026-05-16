@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
-import { Loader2, LogIn, Send, ShieldCheck, Key, ArrowRight } from "lucide-react";
+import { Loader2, LogIn, Send, ShieldCheck, Key, ArrowRight, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -65,11 +65,9 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    // POLA NON-BLOCKING: Jangan gunakan await untuk addDoc agar UI tetap responsif
     const requestsRef = collection(db, "requests");
     addDoc(requestsRef, requestData)
       .catch(async (error: any) => {
-        // Emit error jika terjadi kegagalan izin di latar belakang
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'requests',
           operation: 'create',
@@ -77,13 +75,11 @@ export default function Home() {
         }));
       });
 
-    // Proceed IMMEDIATELY (Optimistic UI)
     toast({ 
       title: "Permintaan Dikirim", 
-      description: `Permintaan akses ke ${targetEmail} telah dicatat. Mohon tunggu persetujuan.` 
+      description: `Permintaan akses ke ${targetEmail} telah dicatat.` 
     });
     
-    // Reset state seketika
     setRequestEmail("");
     setIsSending(false);
     setIsDialogOpen(false);
@@ -92,7 +88,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <Activity className="h-10 w-10 animate-spin text-primary" />
         <p className="text-muted-foreground animate-pulse font-medium">Memuat GulaMonitor...</p>
       </div>
     );
@@ -146,6 +142,11 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold border-primary/20 text-primary hover:bg-primary/5">
+                  <UserPlus className="h-4 w-4" /> Minta Akses
+                </Button>
+              </DialogTrigger>
               <DialogContent className="rounded-[2rem] sm:max-w-md p-8">
                 <DialogHeader><DialogTitle className="text-3xl font-black text-primary">Kirim Permintaan</DialogTitle></DialogHeader>
                 <div className="space-y-6 py-6">
@@ -177,3 +178,5 @@ export default function Home() {
     </main>
   );
 }
+
+import { Activity } from "lucide-react";
