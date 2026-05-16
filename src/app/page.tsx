@@ -48,7 +48,7 @@ export default function Home() {
     }
   };
 
-  const handleRequestAccess = async () => {
+  const handleRequestAccess = () => {
     if (!db || !user?.email || !requestEmail) {
       toast({ title: "Data Belum Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
@@ -65,38 +65,28 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    try {
-      // Mengirim data ke Firestore secara asinkron tanpa menunggu respon panjang
-      addDoc(collection(db, "requests"), requestData)
-        .then(() => {
-          toast({ 
-            title: "Berhasil Terkirim", 
-            description: `Permintaan akses ke ${targetEmail} telah dicatat. Mohon tunggu persetujuan.` 
-          });
-          setRequestEmail("");
-          setIsDialogOpen(false);
-        })
-        .catch(async (error: any) => {
-          console.error("Firestore Error:", error);
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'requests',
-            operation: 'create',
-            requestResourceData: requestData
-          }));
-          toast({ 
-            title: "Gagal Mengirim", 
-            description: "Permintaan ditolak. Pastikan format email benar.",
-            variant: "destructive" 
-          });
-        })
-        .finally(() => {
-          setIsSending(false);
-        });
-    } catch (e: any) {
-      console.error("Request Logic Error:", e);
-      setIsSending(false);
-      toast({ title: "Terjadi Kesalahan", description: e.message, variant: "destructive" });
-    }
+    // POLA NON-BLOCKING: Jangan gunakan await untuk addDoc agar UI tetap responsif
+    const requestsRef = collection(db, "requests");
+    addDoc(requestsRef, requestData)
+      .catch(async (error: any) => {
+        // Emit error jika terjadi kegagalan izin di latar belakang
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'requests',
+          operation: 'create',
+          requestResourceData: requestData
+        }));
+      });
+
+    // Proceed IMMEDIATELY (Optimistic UI)
+    toast({ 
+      title: "Permintaan Dikirim", 
+      description: `Permintaan akses ke ${targetEmail} telah dicatat. Mohon tunggu persetujuan.` 
+    });
+    
+    // Reset state seketika
+    setRequestEmail("");
+    setIsSending(false);
+    setIsDialogOpen(false);
   };
 
   if (loading) {

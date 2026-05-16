@@ -63,11 +63,11 @@
     },
     "/requests/{requestId}": {
       "schema": "#/entities/AccessRequest",
-      "description": "Access requests. Any authenticated user can create a request. Owners can read and delete requests directed to their email."
+      "description": "Access requests. Any authenticated user can create a request. Owners can read and delete requests directed to their own email address."
     },
     "/permissions/{permissionId}": {
       "schema": "#/entities/SharedPermission",
-      "description": "Active viewing permissions. Owners can create/delete permissions. Guests can read permissions granted to their email."
+      "description": "Active viewing permissions. Owners can create and delete permissions. Guests can read permissions where guestEmail matches their own email."
     }
   }
 }

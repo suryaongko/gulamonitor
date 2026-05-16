@@ -39,50 +39,44 @@ export function SharedAccessManager() {
   const { data: requests, loading: loadingRequests } = useCollection(requestsQuery);
   const { data: permissions, loading: loadingPermissions } = useCollection(permissionsQuery);
 
-  const approveRequest = async (request: any) => {
+  const approveRequest = (request: any) => {
     if (!db || !user || !userUid || !request?.requesterEmail) return;
     
     const permId = `${request.requesterEmail}_${userUid}`;
+    const permissionsRef = doc(db, "permissions", permId);
+    const requestsRef = doc(db, "requests", request.id);
     
-    try {
-      await setDoc(doc(db, "permissions", permId), {
-        ownerUid: userUid,
-        ownerEmail: userEmail,
-        guestEmail: request.requesterEmail,
-        grantedAt: new Date().toISOString()
-      });
-      await deleteDoc(doc(db, "requests", request.id));
-      toast({ 
-        title: "Akses Disetujui", 
-        description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
-      });
-    } catch (e) {
-      console.error("Approve Error:", e);
-      toast({ title: "Gagal Menyetujui", variant: "destructive" });
-    }
+    // Mutasi non-blocking
+    setDoc(permissionsRef, {
+      ownerUid: userUid,
+      ownerEmail: userEmail,
+      guestEmail: request.requesterEmail,
+      grantedAt: new Date().toISOString()
+    }).catch(err => console.error("Permission grant failed", err));
+
+    deleteDoc(requestsRef).catch(err => console.error("Request cleanup failed", err));
+
+    toast({ 
+      title: "Akses Disetujui", 
+      description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
+    });
   };
 
-  const revokeAccess = async (permId: string) => {
+  const revokeAccess = (permId: string) => {
     if (!db) return;
-    try {
-      await deleteDoc(doc(db, "permissions", permId));
-      toast({ title: "Akses Dicabut" });
-    } catch (e) {
-      toast({ title: "Gagal Mencabut Akses", variant: "destructive" });
-    }
+    deleteDoc(doc(db, "permissions", permId))
+      .then(() => toast({ title: "Akses Dicabut" }))
+      .catch(() => toast({ title: "Gagal Mencabut Akses", variant: "destructive" }));
   };
 
-  const ignoreRequest = async (requestId: string) => {
+  const ignoreRequest = (requestId: string) => {
     if (!db) return;
-    try {
-      await deleteDoc(doc(db, "requests", requestId));
-      toast({ title: "Permintaan Dihapus" });
-    } catch (e) {
-      toast({ title: "Gagal Menghapus", variant: "destructive" });
-    }
+    deleteDoc(doc(db, "requests", requestId))
+      .then(() => toast({ title: "Permintaan Dihapus" }))
+      .catch(() => toast({ title: "Gagal Menghapus", variant: "destructive" }));
   };
 
-  const safeFormatDate = (timestamp: string) => {
+  const safeFormatDate = (timestamp: any) => {
     if (!timestamp) return "Baru saja";
     const d = new Date(timestamp);
     return isValid(d) ? format(d, "dd MMM yyyy, HH:mm") : "Baru saja";
