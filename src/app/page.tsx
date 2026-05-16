@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { GulaDashboard } from "@/components/dashboard/gula-dashboard";
 import { useUser, useAuth, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
-import { Loader2, LogIn, Send, ShieldCheck, Activity, UserPlus, LogOut } from "lucide-react";
+import { LogIn, Send, ShieldCheck, Activity, UserPlus, LogOut, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -37,7 +37,7 @@ export default function Home() {
     }
   };
 
-  const handleRequestAccess = async () => {
+  const handleRequestAccess = () => {
     if (!db || !user?.email || !requestEmail) {
       toast({ title: "Data Tidak Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
@@ -54,41 +54,32 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    try {
-      // Mengirim data ke Firestore
-      await addDoc(collection(db, "requests"), requestData);
-      
-      toast({ 
-        title: "Permintaan Dikirim", 
-        description: `Permintaan akses ke ${targetEmail} telah berhasil dicatat.` 
+    // Mutasi Optimistik: Langsung berikan respon tanpa menunggu server (menghindari infinite loading)
+    addDoc(collection(db, "requests"), requestData)
+      .catch(async (error: any) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'requests',
+          operation: 'create',
+          requestResourceData: requestData
+        }));
       });
-      
-      setRequestEmail("");
-      setIsDialogOpen(false);
-    } catch (error: any) {
-      console.error("Firestore Request Error:", error);
-      const permissionError = new FirestorePermissionError({
-        path: 'requests',
-        operation: 'create',
-        requestResourceData: requestData
-      });
-      errorEmitter.emit('permission-error', permissionError);
-      
-      toast({ 
-        title: "Gagal Mengirim", 
-        description: "Pastikan alamat email benar dan koneksi internet stabil.", 
-        variant: "destructive" 
-      });
-    } finally {
-      setIsSending(false);
-    }
+
+    // Berikan umpan balik instan
+    toast({ 
+      title: "Permintaan Dikirim", 
+      description: `Permintaan akses ke ${targetEmail} sedang diproses.` 
+    });
+    
+    setRequestEmail("");
+    setIsDialogOpen(false);
+    setIsSending(false);
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
         <Activity className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Menghubungkan...</p>
+        <p className="text-muted-foreground animate-pulse font-bold">Menghubungkan...</p>
       </div>
     );
   }
@@ -150,7 +141,6 @@ export default function Home() {
                         value={requestEmail} 
                         onChange={(e) => setRequestEmail(e.target.value)} 
                         className="rounded-2xl h-14" 
-                        disabled={isSending}
                       />
                       <Button onClick={handleRequestAccess} disabled={isSending || !requestEmail} className="rounded-2xl h-14 w-16">
                         {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
