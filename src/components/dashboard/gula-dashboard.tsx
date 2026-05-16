@@ -45,7 +45,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
-  // Query izin yang diberikan KE SAYA (untuk tamu melihat data orang lain)
+  // Query izin yang diberikan kepada email saya saat ini
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -53,7 +53,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   
   const { data: sharedPermissions, loading: loadingPerms } = useCollection(sharedAccessQuery);
 
-  // UID data yang sedang dilihat
+  // UID data yang sedang ditampilkan
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
   const readingsQuery = useMemo(() => {
@@ -112,7 +112,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       }).catch(err => console.warn("Sync Warning:", err));
     }
 
-    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets (Berlin)." });
+    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets." });
   };
 
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
@@ -189,7 +189,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     return () => clearInterval(interval);
   }, [isAppOwner, viewingOwner, handleImportedReadings]);
 
-  if ((loadingPerms || loadingReadings) && allReadings.length === 0) {
+  if (loadingPerms || loadingReadings) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -198,10 +198,10 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     );
   }
 
-  // Cek apakah tamu tapi belum punya izin sama sekali
+  // Kondisi tamu yang belum disetujui
   const isGuestWithNoAccess = !isAppOwner && !viewingOwner && (!sharedPermissions || sharedPermissions.length === 0);
 
-  if (isGuestWithNoAccess && !loadingPerms) {
+  if (isGuestWithNoAccess && user) {
     return (
       <div className="max-w-2xl mx-auto py-12">
         <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
@@ -213,7 +213,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               <div className="space-y-3">
                 <h2 className="text-4xl font-black text-slate-900 leading-tight">Akses Terbatas</h2>
                 <p className="text-slate-500 text-lg font-medium">
-                  Akun Anda ({user?.email}) belum memiliki izin untuk memantau data. Silakan hubungi pemilik data untuk mendapatkan persetujuan.
+                  Akun <b>{user.email}</b> belum memiliki izin. Silakan hubungi pemilik data untuk mendapatkan persetujuan.
                 </p>
               </div>
               <Button onClick={openRequestDialog} size="lg" className="rounded-2xl h-16 px-10 text-lg font-bold gap-3 shadow-xl">
@@ -228,7 +228,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
   return (
     <div className="space-y-8 font-body animate-in fade-in duration-500">
-      {/* Access Switcher Bar */}
+      {/* Selector Pemilik Data */}
       {((sharedPermissions && sharedPermissions.length > 0) || (isAppOwner && sharedPermissions && sharedPermissions.length > 0)) && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
@@ -252,7 +252,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               onClick={() => setViewingOwner({uid: perm.ownerUid, email: perm.ownerEmail})}
               className="rounded-xl h-10 px-6 gap-2 font-bold"
             >
-              <Users className="h-4 w-4" /> {perm.ownerEmail?.split('@')[0] || 'Owner'}
+              <Users className="h-4 w-4" /> {perm.ownerEmail?.split('@')[0]}
             </Button>
           ))}
         </div>

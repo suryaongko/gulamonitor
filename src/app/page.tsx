@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
-import { Loader2, LogIn, Send, ShieldCheck, Key, ArrowRight, UserPlus, Activity } from "lucide-react";
+import { Loader2, LogIn, Send, ShieldCheck, Activity, UserPlus, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -33,13 +33,13 @@ export default function Home() {
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      toast({ title: "Gagal Login", description: "Pastikan koneksi internet stabil.", variant: "destructive" });
+      toast({ title: "Gagal Login", description: "Silakan coba lagi.", variant: "destructive" });
     }
   };
 
-  const handleRequestAccess = () => {
+  const handleRequestAccess = async () => {
     if (!db || !user?.email || !requestEmail) {
-      toast({ title: "Data Belum Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
+      toast({ title: "Data Tidak Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
     }
     
@@ -54,33 +54,41 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    // Mutation as per guidelines: No await, catch error for rich context
-    addDoc(collection(db, "requests"), requestData)
-      .then(() => {
-        toast({ 
-          title: "Permintaan Dikirim", 
-          description: `Permintaan akses ke ${targetEmail} telah dicatat di inbox pemilik.` 
-        });
-        setRequestEmail("");
-        setIsDialogOpen(false);
-        setIsSending(false);
-      })
-      .catch(async (error) => {
-        setIsSending(false);
-        const permissionError = new FirestorePermissionError({
-          path: 'requests',
-          operation: 'create',
-          requestResourceData: requestData
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    try {
+      // Mengirim data ke Firestore
+      await addDoc(collection(db, "requests"), requestData);
+      
+      toast({ 
+        title: "Permintaan Dikirim", 
+        description: `Permintaan akses ke ${targetEmail} telah berhasil dicatat.` 
       });
+      
+      setRequestEmail("");
+      setIsDialogOpen(false);
+    } catch (error: any) {
+      console.error("Firestore Request Error:", error);
+      const permissionError = new FirestorePermissionError({
+        path: 'requests',
+        operation: 'create',
+        requestResourceData: requestData
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      
+      toast({ 
+        title: "Gagal Mengirim", 
+        description: "Pastikan alamat email benar dan koneksi internet stabil.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
         <Activity className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Memuat GulaMonitor...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Menghubungkan...</p>
       </div>
     );
   }
@@ -95,16 +103,16 @@ export default function Home() {
             </div>
             <div className="space-y-4">
               <h1 className="text-6xl font-black text-slate-900 tracking-tight leading-tight">GulaMonitor <span className="text-primary">Sync</span></h1>
-              <p className="text-xl text-slate-600 max-w-lg">Pemantauan kesehatan Berlin-Time yang tersinkronisasi dan aman.</p>
+              <p className="text-xl text-slate-600 max-w-lg">Pantau kesehatan keluarga secara aman dan tersinkronisasi.</p>
             </div>
           </div>
           <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white/90 backdrop-blur-xl">
             <CardHeader className="p-8 text-center">
-              <CardTitle className="text-3xl font-black">Selamat Datang</CardTitle>
-              <CardDescription>Gunakan akun Google Anda untuk memulai</CardDescription>
+              <CardTitle className="text-3xl font-black">Masuk</CardTitle>
+              <CardDescription>Gunakan akun Google untuk memantau data</CardDescription>
             </CardHeader>
             <CardContent className="p-8 pt-0 space-y-4">
-              <Button onClick={handleAuth} className="w-full h-16 rounded-2xl text-lg font-bold gap-3 transition-transform hover:scale-[1.02]">
+              <Button onClick={handleAuth} className="w-full h-16 rounded-2xl text-lg font-bold gap-3 transition-all hover:scale-[1.02] shadow-lg shadow-primary/20">
                 <LogIn className="h-6 w-6" /> Masuk dengan Google
               </Button>
             </CardContent>
@@ -138,7 +146,7 @@ export default function Home() {
                     <Label className="text-xs font-black uppercase">Email Pemilik Data</Label>
                     <div className="flex gap-2">
                       <Input 
-                        placeholder="surya.ongko@gmail.com" 
+                        placeholder="pemilik@email.com" 
                         value={requestEmail} 
                         onChange={(e) => setRequestEmail(e.target.value)} 
                         className="rounded-2xl h-14" 
@@ -153,7 +161,7 @@ export default function Home() {
               </DialogContent>
             </Dialog>
             <Button variant="outline" onClick={() => signOut(auth!)} className="rounded-xl h-12 px-6 text-red-600 font-bold border-red-100 hover:bg-red-50">
-              <ArrowRight className="h-4 w-4" /> Keluar
+              <LogOut className="h-4 w-4" /> Keluar
             </Button>
           </div>
         </header>
