@@ -13,7 +13,7 @@ import { SharedAccessManager } from "./shared-access-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock } from "lucide-react";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,11 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmNWxysmsd30pO
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
 const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
 
-export function GulaDashboard() {
+interface GulaDashboardProps {
+  openRequestDialog?: () => void;
+}
+
+export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const db = useFirestore();
   const { user } = useUser();
   const [minRange, setMinRange] = useState<number>(70);
@@ -205,11 +209,16 @@ export function GulaDashboard() {
             <div className="w-24 h-24 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
               <Lock className="h-12 w-12 text-amber-600" />
             </div>
-            <div className="space-y-3">
-              <h2 className="text-4xl font-black text-slate-900 leading-tight">Akses Terbatas</h2>
-              <p className="text-slate-500 text-lg font-medium">
-                Akun Anda ({user?.email}) belum memiliki izin untuk memantau data. Silakan hubungi pemilik data.
-              </p>
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h2 className="text-4xl font-black text-slate-900 leading-tight">Akses Terbatas</h2>
+                <p className="text-slate-500 text-lg font-medium">
+                  Akun Anda ({user?.email}) belum memiliki izin untuk memantau data. Silakan hubungi pemilik data untuk mendapatkan persetujuan.
+                </p>
+              </div>
+              <Button onClick={openRequestDialog} size="lg" className="rounded-2xl h-16 px-10 text-lg font-bold gap-3 shadow-xl">
+                <UserPlus className="h-6 w-6" /> Minta Akses Sekarang
+              </Button>
             </div>
           </CardContent>
         </Card>

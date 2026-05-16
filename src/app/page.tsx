@@ -22,33 +22,22 @@ export default function Home() {
   const [requestEmail, setRequestEmail] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [initialAction, setInitialAction] = useState<'login' | 'request' | null>(null);
 
-  useEffect(() => {
-    if (user && initialAction === 'request') {
-      setIsDialogOpen(true);
-      setInitialAction(null);
-    }
-  }, [user, initialAction]);
-
-  const handleAuth = async (action: 'login' | 'request') => {
+  const handleAuth = async () => {
     if (!auth) {
       toast({ title: "Layanan Belum Siap", variant: "destructive" });
       return;
     }
-    setInitialAction(action);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      console.error("Auth Error:", error);
       toast({ title: "Gagal Login", description: "Pastikan koneksi internet stabil.", variant: "destructive" });
-      setInitialAction(null);
     }
   };
 
-  const handleRequestAccess = async () => {
+  const handleRequestAccess = () => {
     if (!db || !user?.email || !requestEmail) {
       toast({ title: "Data Belum Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
@@ -65,32 +54,26 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    try {
-      const requestsRef = collection(db, "requests");
-      await addDoc(requestsRef, requestData);
-      
-      toast({ 
-        title: "Permintaan Dikirim", 
-        description: `Permintaan akses ke ${targetEmail} telah dicatat.` 
+    // Mutation as per guidelines: No await, catch error for rich context
+    addDoc(collection(db, "requests"), requestData)
+      .then(() => {
+        toast({ 
+          title: "Permintaan Dikirim", 
+          description: `Permintaan akses ke ${targetEmail} telah dicatat di inbox pemilik.` 
+        });
+        setRequestEmail("");
+        setIsDialogOpen(false);
+        setIsSending(false);
+      })
+      .catch(async (error) => {
+        setIsSending(false);
+        const permissionError = new FirestorePermissionError({
+          path: 'requests',
+          operation: 'create',
+          requestResourceData: requestData
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-      
-      setRequestEmail("");
-      setIsDialogOpen(false);
-    } catch (error: any) {
-      console.error("Request Error:", error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'requests',
-        operation: 'create',
-        requestResourceData: requestData
-      }));
-      toast({ 
-        title: "Gagal Mengirim", 
-        description: "Terjadi kesalahan saat menghubungi server.", 
-        variant: "destructive" 
-      });
-    } finally {
-      setIsSending(false);
-    }
   };
 
   if (loading) {
@@ -117,19 +100,12 @@ export default function Home() {
           </div>
           <Card className="border-none shadow-2xl rounded-[2.5rem] bg-white/90 backdrop-blur-xl">
             <CardHeader className="p-8 text-center">
-              <CardTitle className="text-3xl font-black">Pilih Akses</CardTitle>
+              <CardTitle className="text-3xl font-black">Selamat Datang</CardTitle>
               <CardDescription>Gunakan akun Google Anda untuk memulai</CardDescription>
             </CardHeader>
             <CardContent className="p-8 pt-0 space-y-4">
-              <Button onClick={() => handleAuth('login')} className="w-full h-16 rounded-2xl text-lg font-bold gap-3 transition-transform hover:scale-[1.02]">
-                <LogIn className="h-6 w-6" /> Login Owner / Guest
-              </Button>
-              <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-white/90 px-4 text-muted-foreground font-black">atau</span></div>
-              </div>
-              <Button variant="outline" onClick={() => handleAuth('request')} className="w-full h-16 rounded-2xl text-lg font-bold gap-3 border-2 transition-transform hover:scale-[1.02]">
-                <Key className="h-6 w-6 text-primary" /> Minta Akses Baru
+              <Button onClick={handleAuth} className="w-full h-16 rounded-2xl text-lg font-bold gap-3 transition-transform hover:scale-[1.02]">
+                <LogIn className="h-6 w-6" /> Masuk dengan Google
               </Button>
             </CardContent>
           </Card>
@@ -152,7 +128,7 @@ export default function Home() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold border-primary/20 text-primary hover:bg-primary/5">
-                  <UserPlus className="h-4 w-4" /> Minta Akses
+                  <UserPlus className="h-4 w-4" /> Minta Akses Baru
                 </Button>
               </DialogTrigger>
               <DialogContent className="rounded-[2rem] sm:max-w-md p-8">
@@ -181,7 +157,9 @@ export default function Home() {
             </Button>
           </div>
         </header>
-        <GulaDashboard />
+        <GulaDashboard 
+          openRequestDialog={() => setIsDialogOpen(true)}
+        />
       </div>
     </main>
   );
