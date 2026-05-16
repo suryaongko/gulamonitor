@@ -14,7 +14,7 @@ export function SharedAccessManager() {
   const db = useFirestore();
   const { user } = useUser();
   
-  const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
+  const userEmail = useMemo(() => user?.email?.toLowerCase().trim() || "", [user]);
   const userUid = useMemo(() => user?.uid || "", [user]);
 
   // Permintaan yang dikirim ke saya (Saya adalah Owner)
@@ -39,35 +39,47 @@ export function SharedAccessManager() {
   const { data: requests, loading: loadingRequests } = useCollection(requestsQuery);
   const { data: permissions, loading: loadingPermissions } = useCollection(permissionsQuery);
 
-  const approveRequest = (request: any) => {
+  const approveRequest = async (request: any) => {
     if (!db || !user || !userUid || !request?.requesterEmail) return;
     
     const permId = `${request.requesterEmail}_${userUid}`;
     
-    setDoc(doc(db, "permissions", permId), {
-      ownerUid: userUid,
-      ownerEmail: userEmail,
-      guestEmail: request.requesterEmail,
-      grantedAt: new Date().toISOString()
-    }).then(() => {
-      deleteDoc(doc(db, "requests", request.id));
+    try {
+      await setDoc(doc(db, "permissions", permId), {
+        ownerUid: userUid,
+        ownerEmail: userEmail,
+        guestEmail: request.requesterEmail,
+        grantedAt: new Date().toISOString()
+      });
+      await deleteDoc(doc(db, "requests", request.id));
       toast({ 
         title: "Akses Disetujui", 
         description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
       });
-    });
+    } catch (e) {
+      console.error("Approve Error:", e);
+      toast({ title: "Gagal Menyetujui", variant: "destructive" });
+    }
   };
 
-  const revokeAccess = (permId: string) => {
+  const revokeAccess = async (permId: string) => {
     if (!db) return;
-    deleteDoc(doc(db, "permissions", permId));
-    toast({ title: "Akses Dicabut" });
+    try {
+      await deleteDoc(doc(db, "permissions", permId));
+      toast({ title: "Akses Dicabut" });
+    } catch (e) {
+      toast({ title: "Gagal Mencabut Akses", variant: "destructive" });
+    }
   };
 
-  const ignoreRequest = (requestId: string) => {
+  const ignoreRequest = async (requestId: string) => {
     if (!db) return;
-    deleteDoc(doc(db, "requests", requestId));
-    toast({ title: "Permintaan Dihapus" });
+    try {
+      await deleteDoc(doc(db, "requests", requestId));
+      toast({ title: "Permintaan Dihapus" });
+    } catch (e) {
+      toast({ title: "Gagal Menghapus", variant: "destructive" });
+    }
   };
 
   const safeFormatDate = (timestamp: string) => {
@@ -108,8 +120,8 @@ export function SharedAccessManager() {
                     <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
                       <Mail className="h-6 w-6" />
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-800">{req.requesterEmail || "User"}</p>
+                    <div className="overflow-hidden">
+                      <p className="font-bold text-slate-800 truncate max-w-[200px]">{req.requesterEmail || "User"}</p>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                         {safeFormatDate(req.timestamp)}
                       </p>
@@ -151,8 +163,8 @@ export function SharedAccessManager() {
                     <div className="w-11 h-11 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
                       <UserCheck className="h-5 w-5" />
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-800">{perm.guestEmail || "Guest"}</p>
+                    <div className="overflow-hidden">
+                      <p className="font-bold text-slate-800 truncate max-w-[150px]">{perm.guestEmail || "Guest"}</p>
                       <div className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                         <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Akses Aktif</p>

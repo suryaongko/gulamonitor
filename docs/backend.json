@@ -59,15 +59,15 @@
   "firestore": {
     "/readings/{readingId}": {
       "schema": "#/entities/Reading",
-      "description": "Collection of blood sugar readings."
+      "description": "Collection of blood sugar readings. Owners can read/write their own data. Approved guests can read the owner's data."
     },
     "/requests/{requestId}": {
       "schema": "#/entities/AccessRequest",
-      "description": "Guest access requests."
+      "description": "Access requests. Any authenticated user can create a request. Owners can read and delete requests directed to their email."
     },
     "/permissions/{permissionId}": {
       "schema": "#/entities/SharedPermission",
-      "description": "Active viewing permissions."
+      "description": "Active viewing permissions. Owners can create/delete permissions. Guests can read permissions granted to their email."
     }
   }
 }

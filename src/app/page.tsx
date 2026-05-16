@@ -48,7 +48,7 @@ export default function Home() {
     }
   };
 
-  const handleRequestAccess = () => {
+  const handleRequestAccess = async () => {
     if (!db || !user?.email || !requestEmail) {
       toast({ title: "Data Belum Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
@@ -56,7 +56,7 @@ export default function Home() {
     
     setIsSending(true);
     const targetEmail = requestEmail.toLowerCase().trim();
-    const myEmail = user.email.toLowerCase();
+    const myEmail = user.email.toLowerCase().trim();
 
     const requestData = {
       requesterEmail: myEmail,
@@ -65,32 +65,38 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    // Kirim data ke Firestore
-    addDoc(collection(db, "requests"), requestData)
-      .then(() => {
-        toast({ 
-          title: "Berhasil Terkirim", 
-          description: `Permintaan akses ke ${targetEmail} telah dicatat. Mohon tunggu persetujuan pemilik.` 
+    try {
+      // Mengirim data ke Firestore secara asinkron tanpa menunggu respon panjang
+      addDoc(collection(db, "requests"), requestData)
+        .then(() => {
+          toast({ 
+            title: "Berhasil Terkirim", 
+            description: `Permintaan akses ke ${targetEmail} telah dicatat. Mohon tunggu persetujuan.` 
+          });
+          setRequestEmail("");
+          setIsDialogOpen(false);
+        })
+        .catch(async (error: any) => {
+          console.error("Firestore Error:", error);
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'requests',
+            operation: 'create',
+            requestResourceData: requestData
+          }));
+          toast({ 
+            title: "Gagal Mengirim", 
+            description: "Permintaan ditolak. Pastikan format email benar.",
+            variant: "destructive" 
+          });
+        })
+        .finally(() => {
+          setIsSending(false);
         });
-        setRequestEmail("");
-        setIsDialogOpen(false);
-      })
-      .catch(async (error: any) => {
-        console.error("Request Error:", error);
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'requests',
-          operation: 'create',
-          requestResourceData: requestData
-        }));
-        toast({ 
-          title: "Gagal Mengirim", 
-          description: "Database menolak permintaan. Pastikan akun Anda sudah benar.",
-          variant: "destructive" 
-        });
-      })
-      .finally(() => {
-        setIsSending(false);
-      });
+    } catch (e: any) {
+      console.error("Request Logic Error:", e);
+      setIsSending(false);
+      toast({ title: "Terjadi Kesalahan", description: e.message, variant: "destructive" });
+    }
   };
 
   if (loading) {
