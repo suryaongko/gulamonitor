@@ -17,8 +17,6 @@ export function SharedAccessManager() {
   const userEmail = useMemo(() => user?.email?.toLowerCase().trim() || "", [user]);
   const userUid = useMemo(() => user?.uid || "", [user]);
 
-  // Kueri yang disederhanakan: Hanya berdasarkan ownerEmail.
-  // Memfilter status 'pending' dilakukan di sisi klien untuk menghindari kebutuhan Composite Index Firestore.
   const requestsQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(
@@ -38,45 +36,55 @@ export function SharedAccessManager() {
   const { data: rawRequests, loading: loadingRequests } = useCollection(requestsQuery);
   const { data: permissions, loading: loadingPermissions } = useCollection(permissionsQuery);
 
-  // Filter permintaan yang statusnya 'pending' secara lokal
   const requests = useMemo(() => {
     return (rawRequests || []).filter((req: any) => req.status === "pending");
   }, [rawRequests]);
 
-  const approveRequest = (request: any) => {
+  const approveRequest = async (request: any) => {
     if (!db || !user || !userUid || !request?.requesterEmail) return;
     
-    const permId = `${request.requesterEmail}_${userUid}`;
-    const permissionsRef = doc(db, "permissions", permId);
-    const requestsRef = doc(db, "requests", request.id);
-    
-    setDoc(permissionsRef, {
-      ownerUid: userUid,
-      ownerEmail: userEmail,
-      guestEmail: request.requesterEmail,
-      grantedAt: new Date().toISOString()
-    }).catch(err => console.error("Permission grant failed", err));
+    try {
+      const permId = `${request.requesterEmail}_${userUid}`.replace(/\./g, '_');
+      const permissionsRef = doc(db, "permissions", permId);
+      const requestsRef = doc(db, "requests", request.id);
+      
+      await setDoc(permissionsRef, {
+        ownerUid: userUid,
+        ownerEmail: userEmail,
+        guestEmail: request.requesterEmail,
+        grantedAt: new Date().toISOString()
+      });
 
-    deleteDoc(requestsRef).catch(err => console.error("Request cleanup failed", err));
+      await deleteDoc(requestsRef);
 
-    toast({ 
-      title: "Akses Disetujui", 
-      description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
-    });
+      toast({ 
+        title: "Akses Disetujui", 
+        description: `${request.requesterEmail} sekarang bisa memantau data Anda.` 
+      });
+    } catch (err) {
+      console.error("Approval Error:", err);
+      toast({ title: "Gagal Menyetujui", variant: "destructive" });
+    }
   };
 
-  const revokeAccess = (permId: string) => {
+  const revokeAccess = async (permId: string) => {
     if (!db) return;
-    deleteDoc(doc(db, "permissions", permId))
-      .then(() => toast({ title: "Akses Dicabut" }))
-      .catch(() => toast({ title: "Gagal Mencabut Akses", variant: "destructive" }));
+    try {
+      await deleteDoc(doc(db, "permissions", permId));
+      toast({ title: "Akses Dicabut" });
+    } catch (err) {
+      toast({ title: "Gagal Mencabut Akses", variant: "destructive" });
+    }
   };
 
-  const ignoreRequest = (requestId: string) => {
+  const ignoreRequest = async (requestId: string) => {
     if (!db) return;
-    deleteDoc(doc(db, "requests", requestId))
-      .then(() => toast({ title: "Permintaan Dihapus" }))
-      .catch(() => toast({ title: "Gagal Menghapus", variant: "destructive" }));
+    try {
+      await deleteDoc(doc(db, "requests", requestId));
+      toast({ title: "Permintaan Dihapus" });
+    } catch (err) {
+      toast({ title: "Gagal Menghapus", variant: "destructive" });
+    }
   };
 
   const safeFormatDate = (timestamp: any) => {

@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { collection, addDoc } from "firebase/firestore";
-import { Loader2, LogIn, Send, ShieldCheck, Key, ArrowRight, UserPlus } from "lucide-react";
+import { Loader2, LogIn, Send, ShieldCheck, Key, ArrowRight, UserPlus, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -48,7 +48,7 @@ export default function Home() {
     }
   };
 
-  const handleRequestAccess = () => {
+  const handleRequestAccess = async () => {
     if (!db || !user?.email || !requestEmail) {
       toast({ title: "Data Belum Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
@@ -65,24 +65,32 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
 
-    const requestsRef = collection(db, "requests");
-    addDoc(requestsRef, requestData)
-      .catch(async (error: any) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'requests',
-          operation: 'create',
-          requestResourceData: requestData
-        }));
+    try {
+      const requestsRef = collection(db, "requests");
+      await addDoc(requestsRef, requestData);
+      
+      toast({ 
+        title: "Permintaan Dikirim", 
+        description: `Permintaan akses ke ${targetEmail} telah dicatat.` 
       });
-
-    toast({ 
-      title: "Permintaan Dikirim", 
-      description: `Permintaan akses ke ${targetEmail} telah dicatat.` 
-    });
-    
-    setRequestEmail("");
-    setIsSending(false);
-    setIsDialogOpen(false);
+      
+      setRequestEmail("");
+      setIsDialogOpen(false);
+    } catch (error: any) {
+      console.error("Request Error:", error);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: 'requests',
+        operation: 'create',
+        requestResourceData: requestData
+      }));
+      toast({ 
+        title: "Gagal Mengirim", 
+        description: "Terjadi kesalahan saat menghubungi server.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (loading) {
@@ -178,5 +186,3 @@ export default function Home() {
     </main>
   );
 }
-
-import { Activity } from "lucide-react";
