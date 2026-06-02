@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -21,24 +22,25 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
   const parseClarityDate = (dateStr: string) => {
     if (!dateStr) return new Date(NaN);
     
+    // Bersihkan karakter kutipan
+    const cleanStr = dateStr.replace(/"/g, "").trim();
+    
     // Coba standar ISO dulu
-    const isoDate = new Date(dateStr);
+    const isoDate = new Date(cleanStr);
     if (!isNaN(isoDate.getTime())) return isoDate;
 
-    // Parsing manual format Jerman/Eropa: DD.MM.YYYY HH:mm:ss atau variations
-    // Kita membersihkan karakter yang mungkin mengganggu
-    const cleanStr = dateStr.replace(/"/g, "").trim();
+    // Parsing manual format Jerman/Eropa: DD.MM.YYYY HH:mm:ss
     const parts = cleanStr.split(/[\.\/\s:]/);
     
     if (parts.length >= 3) {
-      const day = parseInt(parts[0]);
-      const month = parseInt(parts[1]) - 1;
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
       const yearStr = parts[2];
-      const year = yearStr.length === 2 ? 2000 + parseInt(yearStr) : parseInt(yearStr);
+      const year = yearStr.length === 2 ? 2000 + parseInt(yearStr, 10) : parseInt(yearStr, 10);
       
-      const hour = parts[3] ? parseInt(parts[3]) : 0;
-      const min = parts[4] ? parseInt(parts[4]) : 0;
-      const sec = parts[5] ? parseInt(parts[5]) : 0;
+      const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+      const min = parts[4] ? parseInt(parts[4], 10) : 0;
+      const sec = parts[5] ? parseInt(parts[5], 10) : 0;
       
       const d = new Date(year, month, day, hour, min, sec);
       return d;
@@ -73,7 +75,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         let timestampIdx = -1;
         let glucoseIdx = -1;
 
-        // 1. Cari baris Header yang sebenarnya dengan lebih agresif
+        // 1. Cari baris Header
         for (let i = 0; i < Math.min(lines.length, 50); i++) {
           const line = lines[i].toLowerCase();
           const currentDelimiter = line.includes(";") ? ";" : ",";
@@ -103,12 +105,11 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           const parts = line.split(delimiter);
           if (parts.length <= Math.max(timestampIdx, glucoseIdx)) continue;
 
-          const timestampPart = parts[timestampIdx]?.trim().replace(/"/g, "");
+          const timestampPart = parts[timestampIdx]?.trim();
           const valuePart = parts[glucoseIdx]?.trim().replace(/"/g, "");
 
           if (!timestampPart || !valuePart || valuePart === "") continue;
 
-          // Tangani nilai "Low" (biasanya < 40) dan "High" (biasanya > 400)
           let value: number;
           if (valuePart.toLowerCase().includes("low")) {
             value = 39;
@@ -131,18 +132,9 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         }
 
         if (readings.length > 0) {
-          // Urutkan berdasarkan waktu
-          const sortedReadings = readings.sort((a, b) => 
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          );
-          
-          onImportComplete(sortedReadings);
-          toast({
-            title: "Data Terbaca",
-            description: `Ditemukan ${readings.length} data. Menyimpan ke database...`,
-          });
+          onImportComplete(readings);
         } else {
-          throw new Error("Tidak ditemukan data glukosa yang valid setelah baris header.");
+          throw new Error("Tidak ditemukan data glukosa yang valid.");
         }
       } catch (error: any) {
         toast({
@@ -170,7 +162,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
             <div>
               <CardTitle className="text-2xl font-black">Dexcom Clarity CSV Import</CardTitle>
               <CardDescription className="text-emerald-100">
-                Mendukung format Jerman (Eropa) dan nilai "High/Low" secara otomatis.
+                Impor data skala besar langsung dari file CSV (Melewati limit Google Sheets).
               </CardDescription>
             </div>
           </div>
@@ -179,13 +171,13 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
             <h4 className="font-black text-slate-800 flex items-center gap-2">
               <Info className="h-5 w-5 text-blue-500" />
-              Cara Ekspor File Terbaru:
+              Cara Mengatasi Masalah Update:
             </h4>
             <ol className="text-sm text-slate-600 space-y-3 list-decimal ml-4 font-medium">
               <li>Login ke <b>clarity.dexcom.eu</b>.</li>
-              <li>Pilih rentang waktu (sampai tanggal 1 Juni atau terbaru).</li>
-              <li>Klik tombol <b>"Export" (Ekspor)</b> untuk mengunduh file .csv.</li>
-              <li>Unggah file tersebut di sini.</li>
+              <li>Pilih rentang waktu terbaru (misal: 14 hari terakhir).</li>
+              <li>Klik <b>"Ekspor" (Export)</b> dan pilih format CSV.</li>
+              <li>Unggah file di sini. Metode ini <b>DIJAMIN</b> memproses semua data tanpa limitasi 2801 baris Google Sheets.</li>
             </ol>
           </div>
 

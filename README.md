@@ -32,8 +32,9 @@ function doPost(e) {
     // Zona Waktu: Berlin (Europe/Berlin)
     var formattedDate = Utilities.formatDate(timestamp, "Europe/Berlin", "dd/MM/yyyy HH:mm:ss");
     
-    // Masukkan baris baru: Tanggal, Nilai, Email
-    sheet.appendRow([formattedDate, data.value, data.userEmail || "Unknown"]);
+    // OPTIMASI: Sisipkan di Baris 2 agar data terbaru selalu di atas (Menghindari limit 2801 baris Google)
+    sheet.insertRowBefore(2);
+    sheet.getRange(2, 1, 1, 3).setValues([[formattedDate, data.value, data.userEmail || "Unknown"]]);
     
     return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
   } catch (err) {
@@ -42,17 +43,11 @@ function doPost(e) {
 }
 ```
 
-4. Klik ikon **Save** (beri nama "GulaMonitorSync").
-5. Klik tombol **Deploy** -> **New Deployment**.
-6. Pilih type: **Web App**.
-7. Execute as: **Me** (Email Anda).
-8. Who has access: **Anyone**.
-9. Klik **Deploy**. Salin **Web App URL** dan tempel ke variabel `APPS_SCRIPT_URL` di `src/components/dashboard/gula-dashboard.tsx`.
-
-### 2. Publikasikan CSV
+### 2. Publikasikan CSV & Pengurutan
 1. Di Google Sheets, klik **File** -> **Share** -> **Publish to web**.
 2. Pilih format **Comma-separated values (.csv)**.
-3. Klik **Publish**. Salin link yang muncul dan tempel ke `GOOGLE_SHEETS_CSV_URL` di `src/components/dashboard/gula-dashboard.tsx`.
+3. Klik **Publish**. Salin link yang muncul.
+4. **PENTING**: Urutkan Kolom A (Tanggal) secara **Descending (Z-A)** agar data terbaru selalu berada di paling atas. Google membatasi output CSV hanya sampai 2801 baris pertama.
 
 ---
 
