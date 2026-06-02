@@ -24,6 +24,7 @@ export async function syncDexcomData(credentials: {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'User-Agent': 'Dexcom Share/3.0.2.11 CFNetwork/711.2.23 Darwin/14.0.0',
       },
       body: JSON.stringify({
         accountName: credentials.accountName,
@@ -34,10 +35,16 @@ export async function syncDexcomData(credentials: {
 
     if (!loginResponse.ok) {
       const errorText = await loginResponse.text();
-      throw new Error(`Login Dexcom Gagal: ${errorText}`);
+      throw new Error(`Login Dexcom Gagal: ${errorText || loginResponse.statusText}`);
     }
 
-    const sessionId = (await loginResponse.json()).replace(/"/g, '');
+    // Ambil text mentah karena Dexcom sering mengembalikan GUID dalam kutipan, bukan JSON object
+    const rawSessionId = await loginResponse.text();
+    const sessionId = rawSessionId.replace(/"/g, '').trim();
+
+    if (!sessionId || sessionId.length < 10) {
+      throw new Error('ID Sesi Dexcom tidak valid atau akun terkunci.');
+    }
 
     // 2. Ambil nilai glukosa terbaru
     const glucoseResponse = await fetch(
@@ -48,20 +55,29 @@ export async function syncDexcomData(credentials: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Content-Length': '0',
+          'User-Agent': 'Dexcom Share/3.0.2.11 CFNetwork/711.2.23 Darwin/14.0.0',
         },
       }
     );
 
     if (!glucoseResponse.ok) {
-      throw new Error('Gagal mengambil data glukosa dari Dexcom.');
+      const errorText = await glucoseResponse.text();
+      throw new Error(`Gagal mengambil data glukosa: ${errorText || glucoseResponse.statusText}`);
     }
 
     const data = await glucoseResponse.json();
 
+    if (!Array.isArray(data)) {
+      return [];
+    }
+
     // Map data Dexcom ke format Reading kita
     // Format Dexcom: { Value: 120, ST: "/Date(1635330600000)/", ... }
     return data.map((item: any) => {
-      const timestampMs = parseInt(item.ST.match(/\d+/)[0]);
+      // Ekstrak angka timestamp dari format /Date(ms)/
+      const match = item.ST.match(/\d+/);
+      const timestampMs = match ? parseInt(match[0]) : Date.now();
+      
       return {
         value: item.Value,
         timestamp: new Date(timestampMs).toISOString(),
@@ -70,6 +86,6 @@ export async function syncDexcomData(credentials: {
 
   } catch (error: any) {
     console.error('Dexcom Sync Error:', error);
-    throw new Error(error.message || 'Terjadi kesalahan saat sinkronisasi Dexcom.');
+    throw new Error(error.message || 'Terjadi kesalahan sistem saat menghubungi Dexcom.');
   }
 }

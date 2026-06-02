@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Activity, Loader2, RefreshCw, ShieldCheck, Info } from "lucide-react";
+import { Activity, Loader2, RefreshCw, ShieldCheck, Info, AlertTriangle } from "lucide-react";
 import { syncDexcomData } from "@/app/actions/dexcom-action";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
 
 interface DexcomSyncProps {
@@ -22,6 +22,7 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
   const [password, setPassword] = useState("");
   const [isUS, setIsUS] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const handleSync = async () => {
     if (!username || !password) {
@@ -57,7 +58,7 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
     } catch (error: any) {
       toast({
         title: "Gagal Sinkronisasi",
-        description: error.message,
+        description: error.message || "Pastikan fitur 'Share' di aplikasi Dexcom Anda sudah aktif.",
         variant: "destructive",
       });
     } finally {
@@ -68,15 +69,16 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
   if (!isOwner) {
     return (
       <Card className="border-none shadow-sm bg-slate-50">
-        <CardContent className="p-8 text-center text-muted-foreground">
-          Hanya pemilik data yang dapat mengonfigurasi sinkronisasi Dexcom.
+        <CardContent className="p-8 text-center text-muted-foreground flex flex-col items-center gap-2">
+          <ShieldCheck className="h-8 w-8 opacity-20" />
+          <p>Hanya pemilik data yang dapat mengonfigurasi sinkronisasi Dexcom.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="border-none shadow-xl bg-white rounded-[2.5rem] overflow-hidden">
+    <Card className="border-none shadow-xl bg-white rounded-[2.5rem] overflow-hidden animate-in fade-in duration-500">
       <CardHeader className="bg-blue-600 text-white p-8">
         <div className="flex items-center gap-3">
           <Activity className="h-8 w-8" />
@@ -95,8 +97,8 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
             <p className="font-bold mb-1">Cara Menghubungkan:</p>
             <ol className="list-decimal ml-4 space-y-1 opacity-80">
               <li>Buka aplikasi <b>Dexcom Mobile</b> di HP Anda.</li>
-              <li>Aktifkan fitur <b>Share</b> di dalam aplikasi tersebut.</li>
-              <li>Gunakan kredensial akun Dexcom Anda di bawah ini.</li>
+              <li>Pastikan fitur <b>Share</b> sudah AKTIF di aplikasi tersebut.</li>
+              <li>Gunakan kredensial (username/password) yang sama dengan aplikasi.</li>
             </ol>
           </div>
         </div>
@@ -108,7 +110,7 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
               placeholder="Username anda" 
               value={username} 
               onChange={(e) => setUsername(e.target.value)} 
-              className="rounded-2xl h-14 bg-slate-50 border-none"
+              className="rounded-2xl h-14 bg-slate-50 border-none focus:bg-white transition-colors"
             />
           </div>
           <div className="space-y-3">
@@ -118,7 +120,7 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
               placeholder="••••••••" 
               value={password} 
               onChange={(e) => setPassword(e.target.value)} 
-              className="rounded-2xl h-14 bg-slate-50 border-none"
+              className="rounded-2xl h-14 bg-slate-50 border-none focus:bg-white transition-colors"
             />
           </div>
         </div>
@@ -126,7 +128,7 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
         <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
           <div className="space-y-1">
             <p className="font-bold text-slate-800">Lokasi Akun (Server US)</p>
-            <p className="text-xs text-slate-500">Nyalakan jika akun Anda terdaftar di Amerika Serikat.</p>
+            <p className="text-xs text-slate-500">Aktifkan jika akun Anda terdaftar di Region Amerika Serikat.</p>
           </div>
           <Switch checked={isUS} onCheckedChange={setIsUS} />
         </div>
@@ -135,14 +137,19 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
           <Button 
             onClick={handleSync} 
             disabled={isLoading} 
-            className="h-16 rounded-2xl text-lg font-black gap-3 shadow-lg shadow-blue-200"
+            className="h-16 rounded-2xl text-lg font-black gap-3 shadow-lg shadow-blue-200 transition-all active:scale-95"
           >
             {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <RefreshCw className="h-6 w-6" />}
             Sinkronkan Data Sekarang
           </Button>
           <div className="flex items-center gap-2 justify-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            <ShieldCheck className="h-3 w-3" /> Keamanan Terjamin via Dexcom Share API
+            <ShieldCheck className="h-3 w-3" /> Sinkronisasi Aman via Dexcom Share API
           </div>
+        </div>
+
+        <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl text-[10px] text-amber-700 font-medium">
+          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+          <p>Catatan: Jika Anda baru saja mengaktifkan fitur Share, mungkin diperlukan waktu beberapa menit sebelum data dapat ditarik oleh aplikasi ini.</p>
         </div>
       </CardContent>
     </Card>
