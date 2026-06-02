@@ -10,10 +10,11 @@ import { AIInsightsCard } from "./ai-insights-card";
 import { BloodSugarChart } from "./blood-sugar-chart";
 import { GoogleSheetsSync } from "./google-sheets-sync";
 import { SharedAccessManager } from "./shared-access-manager";
+import { DexcomSync } from "./dexcom-sync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus } from "lucide-react";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
 
-  // Query izin yang diberikan kepada email saya saat ini
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -53,7 +53,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   
   const { data: sharedPermissions, loading: loadingPerms } = useCollection(sharedAccessQuery);
 
-  // UID data yang sedang ditampilkan
   const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
 
   const readingsQuery = useMemo(() => {
@@ -135,7 +134,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     });
 
     batch.commit().then(() => {
-      toast({ title: "Sync Berhasil", description: `${newItems.length} data baru ditarik.` });
+      toast({ title: "Sync Berhasil", description: `${newItems.length} data baru ditambahkan.` });
     }).catch(async () => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: 'readings',
@@ -143,51 +142,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       }));
     });
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
-
-  useEffect(() => {
-    if (!isAppOwner || viewingOwner || !GOOGLE_SHEETS_CSV_URL) return;
-
-    const triggerAutoSync = async () => {
-      try {
-        const response = await fetch(`${GOOGLE_SHEETS_CSV_URL}&t=${Date.now()}`);
-        const csvText = await response.text();
-        const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
-        if (rows.length <= 1) return;
-
-        const importedReadings: Reading[] = rows.slice(1).map(row => {
-          const columns = row.includes(";") ? row.split(";") : row.split(",");
-          const val = parseFloat(columns[1]?.replace(",", ".") || "0");
-          const timestampStr = columns[0]?.trim();
-          if (isNaN(val) || !timestampStr) return null;
-          
-          let dateObj: Date;
-          if (timestampStr.includes('/')) {
-            const parts = timestampStr.split(/[\/\-\s:]/);
-            const d = parseInt(parts[0]);
-            const m = parseInt(parts[1]) - 1;
-            const y = parts[2].length === 2 ? 2000 + parseInt(parts[2]) : parseInt(parts[2]);
-            const h = parseInt(parts[3] || "0");
-            const min = parseInt(parts[4] || "0");
-            const s = parseInt(parts[5] || "0");
-            dateObj = new Date(y, m, d, h, min, s);
-          } else {
-            dateObj = new Date(timestampStr);
-          }
-
-          if (isNaN(dateObj.getTime())) return null;
-          return { id: dateObj.getTime().toString(), value: val, timestamp: dateObj.toISOString() };
-        }).filter((r): r is Reading => r !== null);
-
-        handleImportedReadings(importedReadings);
-      } catch (e) {
-        console.warn("Background sync failed", e);
-      }
-    };
-
-    triggerAutoSync();
-    const interval = setInterval(triggerAutoSync, 30000);
-    return () => clearInterval(interval);
-  }, [isAppOwner, viewingOwner, handleImportedReadings]);
 
   if (loadingPerms || loadingReadings) {
     return (
@@ -198,7 +152,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     );
   }
 
-  // Kondisi tamu yang belum disetujui
   const isGuestWithNoAccess = !isAppOwner && !viewingOwner && (!sharedPermissions || sharedPermissions.length === 0);
 
   if (isGuestWithNoAccess && user) {
@@ -228,7 +181,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
   return (
     <div className="space-y-8 font-body animate-in fade-in duration-500">
-      {/* Selector Pemilik Data */}
       {((sharedPermissions && sharedPermissions.length > 0) || (isAppOwner && sharedPermissions && sharedPermissions.length > 0)) && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
@@ -304,6 +256,9 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               </TabsTrigger>
               {isAppOwner && !viewingOwner && (
                 <>
+                  <TabsTrigger value="dexcom" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-blue-600 data-[state=active]:bg-white">
+                    <Radio className="h-4 w-4 mr-2" /> Dexcom CGM
+                  </TabsTrigger>
                   <TabsTrigger value="sharing" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
                     <Users className="h-4 w-4 mr-2" /> Izin Akses
                   </TabsTrigger>
@@ -323,6 +278,9 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               </TabsContent>
               {isAppOwner && !viewingOwner && (
                 <>
+                  <TabsContent value="dexcom">
+                    <DexcomSync onSyncComplete={handleImportedReadings} isOwner={true} />
+                  </TabsContent>
                   <TabsContent value="sharing">
                     <SharedAccessManager />
                   </TabsContent>
