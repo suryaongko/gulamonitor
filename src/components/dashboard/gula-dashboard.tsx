@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -11,10 +10,11 @@ import { BloodSugarChart } from "./blood-sugar-chart";
 import { GoogleSheetsSync } from "./google-sheets-sync";
 import { SharedAccessManager } from "./shared-access-manager";
 import { DexcomSync } from "./dexcom-sync";
+import { ClarityImport } from "./clarity-import";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio } from "lucide-react";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(500)
+      limit(1000) // Tingkatkan limit untuk mendukung data Clarity
     );
   }, [db, currentUid]);
 
@@ -120,27 +120,31 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
     const newItems = imported.filter(r => !existingTimestamps.has(r.timestamp));
     
-    if (newItems.length === 0) return;
+    if (newItems.length === 0) {
+      toast({ title: "Data Sudah Ada", description: "Tidak ada data baru yang perlu ditambahkan." });
+      return;
+    }
 
-    const batch = writeBatch(db);
-    newItems.forEach(r => {
-      const docRef = doc(collection(db, "readings"));
-      batch.set(docRef, {
-        value: r.value,
-        timestamp: r.timestamp,
-        userId: user.uid,
-        createdAt: serverTimestamp()
+    // Gunakan batch untuk efisiensi
+    const batchSize = 400;
+    for (let i = 0; i < newItems.length; i += batchSize) {
+      const batch = writeBatch(db);
+      const chunk = newItems.slice(i, i + batchSize);
+      
+      chunk.forEach(r => {
+        const docRef = doc(collection(db, "readings"));
+        batch.set(docRef, {
+          value: r.value,
+          timestamp: r.timestamp,
+          userId: user.uid,
+          createdAt: serverTimestamp()
+        });
       });
-    });
+      
+      await batch.commit();
+    }
 
-    batch.commit().then(() => {
-      toast({ title: "Sync Berhasil", description: `${newItems.length} data baru ditambahkan.` });
-    }).catch(async () => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'readings',
-        operation: 'write'
-      }));
-    });
+    toast({ title: "Sync Berhasil", description: `${newItems.length} data baru ditambahkan.` });
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
   if (loadingPerms || loadingReadings) {
@@ -259,6 +263,9 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
                   <TabsTrigger value="dexcom" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-blue-600 data-[state=active]:bg-white">
                     <Radio className="h-4 w-4 mr-2" /> Dexcom CGM
                   </TabsTrigger>
+                  <TabsTrigger value="clarity" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-emerald-600 data-[state=active]:bg-white">
+                    <FileText className="h-4 w-4 mr-2" /> Clarity Import
+                  </TabsTrigger>
                   <TabsTrigger value="sharing" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
                     <Users className="h-4 w-4 mr-2" /> Izin Akses
                   </TabsTrigger>
@@ -280,6 +287,9 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
                 <>
                   <TabsContent value="dexcom">
                     <DexcomSync onSyncComplete={handleImportedReadings} isOwner={true} />
+                  </TabsContent>
+                  <TabsContent value="clarity">
+                    <ClarityImport onImportComplete={handleImportedReadings} isOwner={true} />
                   </TabsContent>
                   <TabsContent value="sharing">
                     <SharedAccessManager />
