@@ -15,8 +15,8 @@ import { ClarityImport } from "./clarity-import";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText, Calendar } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText, Calendar, Database } from "lucide-react";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc, getDocs } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -26,6 +26,7 @@ export interface Reading {
   value: number;
   timestamp: string;
   userId?: string;
+  source?: string;
 }
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmNWxysmsd30pOSPhRRdnuj5Lz8kags9UHVQxV7-i0A4OpNOcYagGaUQMpbzdW6gny/exec";
@@ -45,7 +46,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const [maxRange, setMaxRange] = useState<number>(140);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('24h');
   const [viewingOwner, setViewingOwner] = useState<{uid: string, email: string} | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
@@ -65,7 +66,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(100000)
+      limit(50000)
     );
   }, [db, currentUid]);
 
@@ -95,7 +96,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
   const syncToGoogleSheets = async (value: number, timestamp: string) => {
     if (!APPS_SCRIPT_URL || !user?.email) return;
-
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: "POST",
@@ -113,51 +113,41 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     }
   };
 
-  const addReading = async (value: number, timestamp: string) => {
-    if (!db || !user || !isAppOwner || viewingOwner) return; 
+  /**
+   * PUSAT INGESTI DATA (Deduplikasi & Sinkronisasi)
+   * Menangani semua sumber: Dexcom, Clarity, Contour Care (Manual/Sheets)
+   */
+  const handleIngestData = useCallback(async (incoming: Reading[], sourceLabel: string) => {
+    if (!db || !user || !isAppOwner || viewingOwner || isSyncing) return;
     
-    const payload = {
-      value,
-      timestamp,
-      userId: user.uid,
-      createdAt: serverTimestamp()
-    };
+    setIsSyncing(true);
+    
+    // 1. Deteksi Duplikat secara cerdas (Timestamp + Value)
+    const existingMap = new Map<string, boolean>();
+    allReadings.forEach(r => {
+      const key = `${new Date(r.timestamp).getTime()}_${r.value}`;
+      existingMap.set(key, true);
+    });
 
-    addDoc(collection(db, "readings"), payload)
-      .catch(async () => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: 'readings',
-          operation: 'create',
-          requestResourceData: payload
-        }));
-      });
+    const newItems = incoming.filter(r => {
+      const key = `${new Date(r.timestamp).getTime()}_${r.value}`;
+      return !existingMap.has(key);
+    });
 
-    syncToGoogleSheets(value, timestamp);
-    toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets." });
-  };
-
-  const handleImportedReadings = useCallback(async (imported: Reading[]) => {
-    if (!db || !user || !isAppOwner || viewingOwner || isImporting) return;
-    
-    setIsImporting(true);
-    
-    // Normalisasi waktu ke UNIX untuk deteksi duplikat yang akurat
-    const existingTimes = new Set(allReadings.map(r => new Date(r.timestamp).getTime()));
-    const newItems = imported.filter(r => !existingTimes.has(new Date(r.timestamp).getTime()));
-    
     if (newItems.length === 0) {
-      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru untuk ditambahkan." });
-      setIsImporting(false);
+      toast({ title: `Database Sudah Sinkron`, description: `Semua data dari ${sourceLabel} sudah ada di database.` });
+      setIsSyncing(false);
       return;
     }
 
     toast({ 
-      title: "Memproses Impor", 
-      description: `Sedang mengunggah ${newItems.length} data baru...` 
+      title: "Memproses Database Terpusat", 
+      description: `Menyisipkan ${newItems.length} data baru dari ${sourceLabel}...` 
     });
 
     try {
-      const batchSize = 400; 
+      // 2. Batch Write ke Firestore
+      const batchSize = 450; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = newItems.slice(i, i + batchSize);
@@ -168,43 +158,54 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
             value: r.value,
             timestamp: r.timestamp,
             userId: user.uid,
+            source: sourceLabel,
             createdAt: serverTimestamp()
           });
         });
         
         await batch.commit();
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Beri jeda kecil antar batch
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // Sinkronisasi Sheets hanya untuk data terbaru agar tidak overload
-      const itemsToSync = newItems.slice(-300); 
-      const syncInParallel = async (items: Reading[]) => {
-        const parallelLimit = 5;
-        for (let j = 0; j < items.length; j += parallelLimit) {
-          const chunk = items.slice(j, j + parallelLimit);
+      // 3. Sinkronisasi Google Sheets (Hanya 100 data terbaru agar tidak overload)
+      const itemsToSync = newItems.slice(-100);
+      const syncParallel = async (items: Reading[]) => {
+        const pLimit = 5;
+        for (let j = 0; j < items.length; j += pLimit) {
+          const chunk = items.slice(j, j + pLimit);
           await Promise.all(chunk.map(item => syncToGoogleSheets(item.value, item.timestamp)));
         }
       };
-      
-      syncInParallel(itemsToSync).catch(e => console.error("Sheets sync error:", e));
+      syncParallel(itemsToSync).catch(e => console.error("Sheets error:", e));
 
       toast({ 
-        title: "Impor Berhasil!", 
-        description: `Berhasil menambahkan ${newItems.length} data ke riwayat.` 
+        title: "Database Diperbarui!", 
+        description: `Berhasil menambahkan ${newItems.length} data baru dari ${sourceLabel}. Duplikat telah diabaikan.` 
       });
     } catch (err) {
-      console.error("Import Error:", err);
-      toast({ title: "Gagal Impor", description: "Terjadi kesalahan sistem saat menyimpan data.", variant: "destructive" });
+      console.error("Ingestion Error:", err);
+      toast({ title: "Gagal Sinkronisasi", description: "Kesalahan sistem saat menulis ke database.", variant: "destructive" });
     } finally {
-      setIsImporting(false);
+      setIsSyncing(false);
     }
-  }, [db, user, isAppOwner, viewingOwner, allReadings, isImporting]);
+  }, [db, user, isAppOwner, viewingOwner, allReadings, isSyncing]);
+
+  const addManualReading = (value: number, timestamp: string) => {
+    const reading: Reading = {
+      id: `manual-${Date.now()}`,
+      value,
+      timestamp,
+      source: "Manual"
+    };
+    handleIngestData([reading], "Manual");
+  };
 
   if (loadingPerms || loadingReadings) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-bold animate-pulse">Memuat data kesehatan...</p>
+        <p className="text-muted-foreground font-bold animate-pulse">Menghubungkan ke Database Terpusat...</p>
       </div>
     );
   }
@@ -238,10 +239,10 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
   return (
     <div className="space-y-8 font-body animate-in fade-in duration-500">
-      {((sharedPermissions && sharedPermissions.length > 0) || (isAppOwner && sharedPermissions && sharedPermissions.length > 0)) && (
-        <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
+        <div className="flex items-center gap-4">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-            <ShieldAlert className="h-3 w-3" /> Akun Terhubung:
+            <Database className="h-3 w-3" /> Sumber Terhubung:
           </span>
           {isAppOwner && (
             <Button 
@@ -265,7 +266,12 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
             </Button>
           ))}
         </div>
-      )}
+        {isSyncing && (
+          <div className="flex items-center gap-2 text-primary text-xs font-bold animate-pulse">
+            <Loader2 className="h-4 w-4 animate-spin" /> Sedang Mensinkronkan...
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className={cn("space-y-8", (isAppOwner && !viewingOwner) ? "lg:col-span-8" : "lg:col-span-12")}>
@@ -278,7 +284,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
                   <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                  <Calendar className="h-3 w-3" /> Total: {allReadings.length} Data
+                  <Calendar className="h-3 w-3" /> Database: {allReadings.length} Entri
                 </div>
               </div>
               <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-2xl gap-1">
@@ -314,16 +320,16 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               {isAppOwner && !viewingOwner && (
                 <>
                   <TabsTrigger value="dexcom" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-blue-600 data-[state=active]:bg-white">
-                    <Radio className="h-4 w-4 mr-2" /> Dexcom Sync
+                    <Radio className="h-4 w-4 mr-2" /> Dexcom CGM
                   </TabsTrigger>
                   <TabsTrigger value="clarity" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-emerald-600 data-[state=active]:bg-white">
-                    <FileText className="h-4 w-4 mr-2" /> Clarity Import
+                    <FileText className="h-4 w-4 mr-2" /> Clarity
+                  </TabsTrigger>
+                  <TabsTrigger value="sync" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
+                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Contour Care
                   </TabsTrigger>
                   <TabsTrigger value="sharing" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
                     <Users className="h-4 w-4 mr-2" /> Izin Akses
-                  </TabsTrigger>
-                  <TabsTrigger value="sync" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
-                    <FileSpreadsheet className="h-4 w-4 mr-2" /> Google Sheets
                   </TabsTrigger>
                 </>
               )}
@@ -339,20 +345,20 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               {isAppOwner && !viewingOwner && (
                 <>
                   <TabsContent value="dexcom">
-                    <DexcomSync onSyncComplete={handleImportedReadings} isOwner={true} />
+                    <DexcomSync onSyncComplete={(data) => handleIngestData(data, "Dexcom CGM")} isOwner={true} />
                   </TabsContent>
                   <TabsContent value="clarity">
-                    <ClarityImport onImportComplete={handleImportedReadings} isOwner={true} />
-                  </TabsContent>
-                  <TabsContent value="sharing">
-                    <SharedAccessManager />
+                    <ClarityImport onImportComplete={(data) => handleIngestData(data, "Dexcom Clarity")} isOwner={true} />
                   </TabsContent>
                   <TabsContent value="sync">
                     <GoogleSheetsSync 
-                      onImport={handleImportedReadings} 
+                      onImport={(data) => handleIngestData(data, "Contour Care")} 
                       defaultUrl={GOOGLE_SHEETS_CSV_URL}
                       autoSync={true} 
                     />
+                  </TabsContent>
+                  <TabsContent value="sharing">
+                    <SharedAccessManager />
                   </TabsContent>
                 </>
               )}
@@ -364,10 +370,10 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
           <div className="lg:col-span-4 space-y-8">
             <Card className="border-none shadow-2xl bg-white rounded-[2.5rem]">
               <CardHeader className="px-10 pt-10 pb-4">
-                <CardTitle className="text-2xl font-black text-primary">Catat Manual</CardTitle>
+                <CardTitle className="text-2xl font-black text-primary">Input Manual</CardTitle>
               </CardHeader>
               <CardContent className="px-10 pb-10">
-                <ReadingForm onAdd={addReading} />
+                <ReadingForm onAdd={addManualReading} />
               </CardContent>
             </Card>
 

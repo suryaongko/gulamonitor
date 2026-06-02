@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, isValid } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ReadingsListProps {
@@ -21,7 +21,7 @@ export function ReadingsList({ readings }: ReadingsListProps) {
   if (!readings || readings.length === 0) {
     return (
       <div className="text-center py-12 bg-white/50 rounded-2xl border border-dashed">
-        <p className="text-muted-foreground font-medium italic">Belum ada data yang tercatat.</p>
+        <p className="text-muted-foreground font-medium italic">Belum ada data yang tercatat dalam database.</p>
       </div>
     );
   }
@@ -46,6 +46,7 @@ export function ReadingsList({ readings }: ReadingsListProps) {
           <TableHeader className="bg-slate-50/50">
             <TableRow className="hover:bg-transparent border-slate-100">
               <TableHead className="font-black text-[10px] uppercase tracking-widest px-8">Waktu Berlin</TableHead>
+              <TableHead className="font-black text-[10px] uppercase tracking-widest text-center">Sumber</TableHead>
               <TableHead className="font-black text-[10px] uppercase tracking-widest text-right">Nilai (mg/dL)</TableHead>
               <TableHead className="font-black text-[10px] uppercase tracking-widest text-right px-8">Status</TableHead>
             </TableRow>
@@ -55,6 +56,11 @@ export function ReadingsList({ readings }: ReadingsListProps) {
               <TableRow key={reading.id} className="border-slate-50 hover:bg-slate-50/30 transition-colors">
                 <TableCell className="text-sm font-bold text-slate-600 px-8">
                   {safeFormatDate(reading.timestamp)}
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge variant="outline" className="text-[9px] font-bold border-slate-200 text-slate-400 rounded-lg">
+                    {reading.source || "Database"}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-right font-black text-slate-900 text-lg">
                   {reading.value}
