@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileSpreadsheet, Loader2, RefreshCw } from "lucide-react";
+import { FileSpreadsheet, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
 import { Switch } from "@/components/ui/switch";
@@ -54,11 +54,18 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
         fetchUrl += (fetchUrl.includes("?") ? "&" : "?") + "output=csv";
       }
 
+      // Gunakan timestamp untuk menghindari cache browser
       const response = await fetch(`${fetchUrl}&t=${Date.now()}`);
       if (!response.ok) throw new Error("Gagal mengambil data dari Google Sheets.");
       
       const csvText = await response.text();
       const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
+      
+      // Jika data berhenti di baris tertentu (~2800), ini adalah limit dari Google Publish
+      if (rows.length > 2800 && rows.length < 2810) {
+        console.warn("Kemungkinan limitasi 'Publish to Web' tercapai pada 2801 baris.");
+      }
+
       if (rows.length <= 1) return;
 
       const dataRows = rows.slice(1);
@@ -128,6 +135,14 @@ export function GoogleSheetsSync({ onImport, defaultUrl, autoSync: initialAutoSy
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex gap-3 mb-2">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+          <div className="text-[10px] text-amber-800 leading-relaxed">
+            <p className="font-bold mb-1 uppercase">Informasi Limitasi Google:</p>
+            <p>Fitur <b>"Publish to Web"</b> Google Sheets terkadang membatasi output CSV hingga ~2801 baris. Jika data Anda lebih dari itu, disarankan menggunakan fitur <b>Clarity Import</b> untuk riwayat lengkap.</p>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="gs-url">Link CSV "Publish to Web"</Label>
           <div className="flex flex-col md:flex-row gap-2">

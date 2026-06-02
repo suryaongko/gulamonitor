@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText, Calendar } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc, getDocs } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -45,6 +45,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const [maxRange, setMaxRange] = useState<number>(140);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('24h');
   const [viewingOwner, setViewingOwner] = useState<{uid: string, email: string} | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
   const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
@@ -64,7 +65,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(50000) // Batas 50.000 untuk mengakomodasi seluruh riwayat Clarity
+      limit(100000) // Ditingkatkan ke 100rb untuk riwayat tanpa batas
     );
   }, [db, currentUid]);
 
@@ -136,7 +137,9 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   };
 
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
-    if (!db || !user || !isAppOwner || viewingOwner) return;
+    if (!db || !user || !isAppOwner || viewingOwner || isImporting) return;
+    
+    setIsImporting(true);
     
     // Normalisasi waktu ke UNIX untuk deteksi duplikat yang akurat
     const existingTimes = new Set(allReadings.map(r => new Date(r.timestamp).getTime()));
@@ -144,17 +147,18 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     
     if (newItems.length === 0) {
       toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru." });
+      setIsImporting(false);
       return;
     }
 
     toast({ 
-      title: "Memulai Impor Massal", 
-      description: `Memproses ${newItems.length} data baru...` 
+      title: "Memproses Data Massal", 
+      description: `Mengunggah ${newItems.length} data baru ke sistem...` 
     });
 
     try {
-      // 1. Simpan ke Firestore dalam Batch (400 per batch)
-      const batchSize = 400; 
+      // 1. Simpan ke Firestore dalam Batch (500 per batch - limit resmi Firestore)
+      const batchSize = 450; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = newItems.slice(i, i + batchSize);
@@ -170,36 +174,39 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         });
         
         await batch.commit();
+        // Berikan sedikit nafas untuk browser
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // 2. Sinkronisasi ke Google Sheets (Batch Paralel agar tidak hang)
-      const itemsToSync = newItems.slice(-300); // Batas 300 terbaru untuk Sheets guna mencegah overload
+      // 2. Sinkronisasi ke Google Sheets (Hanya 300 data terbaru agar tidak overload)
+      const itemsToSync = newItems.slice(-300); 
       const syncInParallel = async (items: Reading[]) => {
-        const parallelLimit = 10; // 10 request sekaligus
+        const parallelLimit = 5; // Kurangi limit paralel agar tidak kena rate limit Sheets
         for (let j = 0; j < items.length; j += parallelLimit) {
           const chunk = items.slice(j, j + parallelLimit);
           await Promise.all(chunk.map(item => syncToGoogleSheets(item.value, item.timestamp)));
         }
       };
       
-      // Jalankan sinkronisasi Sheets di latar belakang
       syncInParallel(itemsToSync).catch(e => console.error("Sheets sync error:", e));
 
       toast({ 
-        title: "Impor Berhasil!", 
-        description: `${newItems.length} data telah ditambahkan ke database.` 
+        title: "Impor Selesai!", 
+        description: `Berhasil menambahkan ${newItems.length} data glukosa.` 
       });
     } catch (err) {
       console.error("Import Error:", err);
-      toast({ title: "Gagal Impor", description: "Terjadi kesalahan saat menyimpan data.", variant: "destructive" });
+      toast({ title: "Gagal Impor", description: "Terjadi kesalahan saat menyimpan data skala besar.", variant: "destructive" });
+    } finally {
+      setIsImporting(false);
     }
-  }, [db, user, isAppOwner, viewingOwner, allReadings]);
+  }, [db, user, isAppOwner, viewingOwner, allReadings, isImporting]);
 
   if (loadingPerms || loadingReadings) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-bold animate-pulse">Memuat riwayat kesehatan...</p>
+        <p className="text-muted-foreground font-bold animate-pulse">Memuat riwayat kesehatan ({allReadings.length} data)...</p>
       </div>
     );
   }
@@ -273,7 +280,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
                   <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                  <Calendar className="h-3 w-3" /> Waktu Berlin (GMT+1)
+                  <Calendar className="h-3 w-3" /> Total: {allReadings.length} Data
                 </div>
               </div>
               <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-2xl gap-1">
