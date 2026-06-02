@@ -18,7 +18,6 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  // Helper untuk parsing tanggal format Jerman (DD.MM.YYYY) atau ISO
   const parseClarityDate = (dateStr: string) => {
     if (!dateStr) return new Date(NaN);
     
@@ -26,12 +25,17 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
     const isoDate = new Date(dateStr);
     if (!isNaN(isoDate.getTime())) return isoDate;
 
-    // Parsing manual format Jerman: DD.MM.YYYY HH:mm:ss atau DD/MM/YYYY
-    const parts = dateStr.split(/[\.\/\s:]/);
+    // Parsing manual format Jerman/Eropa: DD.MM.YYYY HH:mm:ss atau variations
+    // Kita membersihkan karakter yang mungkin mengganggu
+    const cleanStr = dateStr.replace(/"/g, "").trim();
+    const parts = cleanStr.split(/[\.\/\s:]/);
+    
     if (parts.length >= 3) {
       const day = parseInt(parts[0]);
       const month = parseInt(parts[1]) - 1;
-      const year = parts[2].length === 2 ? 2000 + parseInt(parts[2]) : parseInt(parts[2]);
+      const yearStr = parts[2];
+      const year = yearStr.length === 2 ? 2000 + parseInt(yearStr) : parseInt(yearStr);
+      
       const hour = parts[3] ? parseInt(parts[3]) : 0;
       const min = parts[4] ? parseInt(parts[4]) : 0;
       const sec = parts[5] ? parseInt(parts[5]) : 0;
@@ -69,26 +73,26 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         let timestampIdx = -1;
         let glucoseIdx = -1;
 
-        // 1. Cari baris Header yang sebenarnya
-        for (let i = 0; i < Math.min(lines.length, 30); i++) {
+        // 1. Cari baris Header yang sebenarnya dengan lebih agresif
+        for (let i = 0; i < Math.min(lines.length, 50); i++) {
           const line = lines[i].toLowerCase();
-          if (
-            (line.includes("timestamp") || line.includes("zeitstempel") || line.includes("date") || line.includes("datum")) &&
-            (line.includes("glucose") || line.includes("glukose") || line.includes("wert") || line.includes("value"))
-          ) {
+          const currentDelimiter = line.includes(";") ? ";" : ",";
+          const headers = line.split(currentDelimiter).map(h => h.trim().replace(/"/g, ""));
+          
+          const hasTime = headers.some(h => h.includes("timestamp") || h.includes("zeitstempel") || h.includes("date") || h.includes("datum") || h.includes("gerätezeit"));
+          const hasGlucose = headers.some(h => h.includes("glucose") || h.includes("glukose") || h.includes("wert") || h.includes("value") || h.includes("mg/dl"));
+
+          if (hasTime && hasGlucose) {
             headerIndex = i;
-            delimiter = lines[i].includes(";") ? ";" : ",";
-            const headers = lines[i].split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ""));
-            
-            timestampIdx = headers.findIndex(h => h.includes("timestamp") || h.includes("zeitstempel") || h.includes("date") || h.includes("datum"));
-            glucoseIdx = headers.findIndex(h => h.includes("glucose") || h.includes("glukose") || (h.includes("wert") && !h.includes("status")) || h.includes("value"));
-            
+            delimiter = currentDelimiter;
+            timestampIdx = headers.findIndex(h => h.includes("timestamp") || h.includes("zeitstempel") || h.includes("date") || h.includes("datum") || h.includes("gerätezeit"));
+            glucoseIdx = headers.findIndex(h => h.includes("glucose") || h.includes("glukose") || (h.includes("wert") && !h.includes("status")) || h.includes("value") || h.includes("mg/dl"));
             break;
           }
         }
 
         if (headerIndex === -1) {
-          throw new Error("Format file tidak dikenali. Pastikan Anda mengunduh 'Export' CSV dari portal Clarity.");
+          throw new Error("Format file tidak dikenali. Pastikan Anda menggunakan 'Export' CSV dari portal Clarity.");
         }
 
         // 2. Proses baris data
@@ -102,13 +106,22 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           const timestampPart = parts[timestampIdx]?.trim().replace(/"/g, "");
           const valuePart = parts[glucoseIdx]?.trim().replace(/"/g, "");
 
-          if (!timestampPart || !valuePart || valuePart === "Low" || valuePart === "High" || valuePart === "") continue;
+          if (!timestampPart || !valuePart || valuePart === "") continue;
 
-          const cleanValue = valuePart.replace(",", ".");
-          const value = parseFloat(cleanValue);
+          // Tangani nilai "Low" (biasanya < 40) dan "High" (biasanya > 400)
+          let value: number;
+          if (valuePart.toLowerCase().includes("low")) {
+            value = 39;
+          } else if (valuePart.toLowerCase().includes("high")) {
+            value = 401;
+          } else {
+            const cleanValue = valuePart.replace(",", ".");
+            value = parseFloat(cleanValue);
+          }
+
           const date = parseClarityDate(timestampPart);
 
-          if (!isNaN(date.getTime()) && !isNaN(value) && value > 10) {
+          if (!isNaN(date.getTime()) && !isNaN(value) && value > 0) {
             readings.push({
               id: `clarity-${date.getTime()}-${value}`,
               value: Math.round(value),
@@ -118,18 +131,18 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         }
 
         if (readings.length > 0) {
-          // Urutkan berdasarkan waktu (terlama ke terbaru)
+          // Urutkan berdasarkan waktu
           const sortedReadings = readings.sort((a, b) => 
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           );
           
           onImportComplete(sortedReadings);
           toast({
-            title: "Impor Berhasil",
-            description: `Berhasil memproses ${readings.length} data glukosa. Sinkronisasi Google Sheets sedang berjalan...`,
+            title: "Data Terbaca",
+            description: `Ditemukan ${readings.length} data. Menyimpan ke database...`,
           });
         } else {
-          throw new Error("Tidak ditemukan data glukosa yang valid dalam file ini.");
+          throw new Error("Tidak ditemukan data glukosa yang valid setelah baris header.");
         }
       } catch (error: any) {
         toast({
@@ -157,7 +170,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
             <div>
               <CardTitle className="text-2xl font-black">Dexcom Clarity CSV Import</CardTitle>
               <CardDescription className="text-emerald-100">
-                Mendukung format Jerman (Eropa) secara otomatis.
+                Mendukung format Jerman (Eropa) dan nilai "High/Low" secara otomatis.
               </CardDescription>
             </div>
           </div>
@@ -166,7 +179,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
             <h4 className="font-black text-slate-800 flex items-center gap-2">
               <Info className="h-5 w-5 text-blue-500" />
-              Cara Ekspor File:
+              Cara Ekspor File Terbaru:
             </h4>
             <ol className="text-sm text-slate-600 space-y-3 list-decimal ml-4 font-medium">
               <li>Login ke <b>clarity.dexcom.eu</b>.</li>
@@ -181,13 +194,13 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
               <Upload className="h-10 w-10" />
             </div>
             
-            <Label htmlFor="clarity-upload-fix" className="cursor-pointer">
+            <Label htmlFor="clarity-upload-final" className="cursor-pointer">
               <div className="bg-emerald-600 hover:bg-emerald-700 text-white h-16 px-10 rounded-2xl flex items-center justify-center font-black text-lg gap-3 shadow-lg transition-all active:scale-95">
                 {isProcessing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
                 Pilih File CSV Clarity
               </div>
               <Input 
-                id="clarity-upload-fix" 
+                id="clarity-upload-final" 
                 type="file" 
                 accept=".csv" 
                 className="hidden" 

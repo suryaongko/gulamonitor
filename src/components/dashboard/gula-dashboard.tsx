@@ -63,7 +63,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(20000) // Tingkatkan limit untuk data jangka panjang
+      limit(30000) // Batas lebih tinggi untuk mengakomodasi impor Clarity
     );
   }, [db, currentUid]);
 
@@ -137,20 +137,20 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
     if (!db || !user || !isAppOwner || viewingOwner) return;
     
-    // Gunakan Map untuk pengecekan duplikat yang lebih cepat
-    const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
-    const newItems = imported.filter(r => !existingTimestamps.has(r.timestamp));
+    // Normalisasi timestamp ke milidetik untuk pengecekan duplikat yang akurat
+    const existingTimes = new Set(allReadings.map(r => new Date(r.timestamp).getTime()));
+    const newItems = imported.filter(r => !existingTimes.has(new Date(r.timestamp).getTime()));
     
     if (newItems.length === 0) {
-      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru dalam file tersebut." });
+      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru yang belum ada di database." });
       return;
     }
 
-    toast({ title: "Sedang Menyimpan", description: `Memproses ${newItems.length} data baru ke Cloud & Google Sheets...` });
+    toast({ title: "Menyimpan Data Baru", description: `Memproses ${newItems.length} baris data unik ke Cloud...` });
 
     try {
-      // Tulis ke Firestore dalam batch besar
-      const batchSize = 450; 
+      // Gunakan batch untuk efisiensi
+      const batchSize = 400; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = newItems.slice(i, i + batchSize);
@@ -168,19 +168,19 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         await batch.commit();
       }
 
-      // Sync ke Google Sheets (fokus pada 250 data terbaru dari batch ini)
-      const itemsToSync = newItems.slice(-250); 
+      // Sync ke Google Sheets (hanya 150 data terbaru agar tidak timeout)
+      const itemsToSync = newItems.slice(-150); 
       for (const item of itemsToSync) {
         await syncToGoogleSheets(item.value, item.timestamp);
       }
 
       toast({ 
-        title: "Sinkronisasi Selesai", 
-        description: `${newItems.length} data baru berhasil diimpor. Semua riwayat kini sinkron.` 
+        title: "Impor Selesai!", 
+        description: `${newItems.length} data baru berhasil ditambahkan ke riwayat.` 
       });
     } catch (err) {
       console.error("Import Error:", err);
-      toast({ title: "Gagal Impor", description: "Terjadi kendala teknis saat menyimpan data.", variant: "destructive" });
+      toast({ title: "Gagal Impor", description: "Terjadi kendala saat menyimpan data masal.", variant: "destructive" });
     }
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
