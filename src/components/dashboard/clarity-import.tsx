@@ -37,52 +37,84 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const lines = text.split(/\r?\n/);
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
         const readings: Reading[] = [];
 
-        // Deteksi pemisah (comma vs semicolon)
-        const firstLine = lines[0] || "";
-        const delimiter = firstLine.includes(";") ? ";" : ",";
-        
-        for (let line of lines) {
-          if (!line.trim()) continue;
+        let headerIndex = -1;
+        let delimiter = ",";
+        let timestampIdx = -1;
+        let glucoseIdx = -1;
+
+        // 1. Cari baris Header yang sebenarnya (biasanya mengandung kata 'Timestamp' atau 'Glukose')
+        for (let i = 0; i < Math.min(lines.length, 20); i++) {
+          const line = lines[i].toLowerCase();
+          if (
+            (line.includes("timestamp") || line.includes("zeitstempel") || line.includes("date") || line.includes("datum")) &&
+            (line.includes("glucose") || line.includes("glukose") || line.includes("wert") || line.includes("value"))
+          ) {
+            headerIndex = i;
+            delimiter = lines[i].includes(";") ? ";" : ",";
+            const headers = lines[i].split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ""));
+            
+            // Cari indeks kolom berdasarkan nama (mendukung Bahasa Inggris & Jerman)
+            timestampIdx = headers.findIndex(h => h.includes("timestamp") || h.includes("zeitstempel") || h.includes("date") || h.includes("datum"));
+            glucoseIdx = headers.findIndex(h => h.includes("glucose") || h.includes("glukose") || (h.includes("wert") && !h.includes("status")) || h.includes("value"));
+            
+            break;
+          }
+        }
+
+        // Jika pencarian header gagal, coba fallback ke index standar Clarity Export
+        if (headerIndex === -1) {
+          headerIndex = 0;
+          timestampIdx = 1;
+          glucoseIdx = 2;
+          delimiter = lines[0].includes(";") ? ";" : ",";
+        }
+
+        // 2. Proses baris data mulai dari setelah header
+        for (let i = headerIndex + 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
           
           const parts = line.split(delimiter);
+          if (parts.length <= Math.max(timestampIdx, glucoseIdx)) continue;
+
+          const timestampPart = parts[timestampIdx]?.trim().replace(/"/g, "");
+          const valuePart = parts[glucoseIdx]?.trim().replace(/"/g, "");
+
+          if (!timestampPart || !valuePart) continue;
+
+          // Tangani format angka Jerman (koma sebagai desimal)
+          const cleanValue = valuePart.replace(",", ".");
+          const value = parseFloat(cleanValue);
           
-          // Cari baris data: Clarity CSV biasanya punya Timestamp di kolom ke-2 (index 1) 
-          // dan Nilai Glukosa di kolom ke-3 (index 2)
-          if (parts.length >= 2) {
-            const timestampPart = parts[1]?.trim();
-            const valuePart = parts[2]?.trim();
+          // Parsing Tanggal
+          const date = new Date(timestampPart);
 
-            if (!timestampPart || !valuePart) continue;
-
-            // Bersihkan data: Hapus tanda kutip jika ada
-            const cleanTimestamp = timestampPart.replace(/"/g, "");
-            const cleanValue = valuePart.replace(/"/g, "").replace(",", "."); // Handle German decimal comma
-
-            const date = new Date(cleanTimestamp);
-            const value = parseFloat(cleanValue);
-
-            // Validasi: Pastikan tanggal valid dan angka glukosa masuk akal
-            if (!isNaN(date.getTime()) && !isNaN(value) && value > 10 && value < 600) {
-              readings.push({
-                id: `clarity-${date.getTime()}-${value}`,
-                value: value,
-                timestamp: date.toISOString(),
-              });
-            }
+          // Validasi: Pastikan tanggal valid dan angka glukosa masuk akal
+          if (!isNaN(date.getTime()) && !isNaN(value) && value > 10 && value < 600) {
+            readings.push({
+              id: `clarity-${date.getTime()}-${value}`,
+              value: value,
+              timestamp: date.toISOString(),
+            });
           }
         }
 
         if (readings.length > 0) {
-          onImportComplete(readings);
+          // Urutkan berdasarkan waktu
+          const sortedReadings = readings.sort((a, b) => 
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
+          
+          onImportComplete(sortedReadings);
           toast({
             title: "Impor Berhasil",
-            description: `Berhasil memproses ${readings.length} data glukosa.`,
+            description: `Berhasil memproses ${readings.length} data glukosa dari Clarity.`,
           });
         } else {
-          throw new Error("Tidak ditemukan data glukosa yang valid. Pastikan ini adalah file 'Export' CSV dari Clarity.");
+          throw new Error("Tidak ditemukan data glukosa yang valid. Pastikan ini adalah file 'Export' CSV dari portal Clarity (bukan cetak laporan PDF).");
         }
       } catch (error: any) {
         toast({
@@ -119,11 +151,12 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
             <h4 className="font-black text-slate-800 flex items-center gap-2">
               <Info className="h-5 w-5 text-blue-500" />
-              Cara Mendapatkan File yang Benar:
+              Cara Mendapatkan File yang Benar (Portal Jerman):
             </h4>
             <ol className="text-sm text-slate-600 space-y-3 list-decimal ml-4 font-medium">
               <li>Login ke <b>clarity.dexcom.eu</b>.</li>
-              <li>Klik menu <b>"Export"</b> (bukan Download Report PDF).</li>
+              <li>Pilih rentang waktu (misal: 14 hari terakhir).</li>
+              <li>Klik tombol <b>"Export"</b> (Ekspor) di menu atas. <i>Catatan: Jangan pilih "Print Report", karena itu akan menghasilkan PDF.</i></li>
               <li>Simpan file <b>.csv</b> ke perangkat Anda.</li>
               <li>Unggah file tersebut di tombol bawah ini.</li>
             </ol>
@@ -135,7 +168,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
             </div>
             <div className="text-center space-y-2 mb-8">
               <p className="text-xl font-black text-slate-800">Pilih File CSV Clarity</p>
-              <p className="text-sm text-slate-400 font-bold uppercase tracking-widest">Format: .csv (Jerman/Internasional)</p>
+              <p className="text-sm text-slate-400 font-bold uppercase tracking-widest">Format: .csv (Mendukung Regional Jerman)</p>
             </div>
             
             <Label htmlFor="clarity-upload" className="cursor-pointer">
@@ -157,7 +190,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3">
             <AlertCircle className="h-5 w-5 text-blue-600 shrink-0" />
             <p className="text-xs text-blue-800 leading-relaxed font-medium">
-              Sistem mendukung format CSV Jerman (pemisah titik koma). Data yang sudah ada tidak akan diduplikasi.
+              Sistem akan otomatis mendeteksi format file Clarity Anda. Data yang sudah ada tidak akan diduplikasi di database.
             </p>
           </div>
         </CardContent>

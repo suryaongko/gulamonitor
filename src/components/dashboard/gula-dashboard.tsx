@@ -61,7 +61,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(1000) // Tingkatkan limit untuk mendukung data Clarity
+      limit(5000) // Ditingkatkan untuk mendukung impor data riwayat Clarity yang banyak
     );
   }, [db, currentUid]);
 
@@ -117,6 +117,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
     if (!db || !user || !isAppOwner || viewingOwner) return;
     
+    // Gunakan Set untuk pencarian cepat data yang sudah ada (untuk menghindari duplikasi)
     const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
     const newItems = imported.filter(r => !existingTimestamps.has(r.timestamp));
     
@@ -125,26 +126,32 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       return;
     }
 
-    // Gunakan batch untuk efisiensi
-    const batchSize = 400;
-    for (let i = 0; i < newItems.length; i += batchSize) {
-      const batch = writeBatch(db);
-      const chunk = newItems.slice(i, i + batchSize);
-      
-      chunk.forEach(r => {
-        const docRef = doc(collection(db, "readings"));
-        batch.set(docRef, {
-          value: r.value,
-          timestamp: r.timestamp,
-          userId: user.uid,
-          createdAt: serverTimestamp()
-        });
-      });
-      
-      await batch.commit();
-    }
+    toast({ title: "Memproses Impor", description: `Menyimpan ${newItems.length} data baru ke database...` });
 
-    toast({ title: "Sync Berhasil", description: `${newItems.length} data baru ditambahkan.` });
+    try {
+      // Gunakan batch untuk efisiensi penyimpanan massal
+      const batchSize = 400; // Limit Firestore adalah 500 per batch
+      for (let i = 0; i < newItems.length; i += batchSize) {
+        const batch = writeBatch(db);
+        const chunk = newItems.slice(i, i + batchSize);
+        
+        chunk.forEach(r => {
+          const docRef = doc(collection(db, "readings"));
+          batch.set(docRef, {
+            value: r.value,
+            timestamp: r.timestamp,
+            userId: user.uid,
+            createdAt: serverTimestamp()
+          });
+        });
+        
+        await batch.commit();
+      }
+      toast({ title: "Impor Berhasil", description: `${newItems.length} data baru berhasil ditambahkan.` });
+    } catch (err) {
+      console.error("Import Error:", err);
+      toast({ title: "Gagal Menyimpan", description: "Terjadi kesalahan saat menyimpan data impor.", variant: "destructive" });
+    }
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
   if (loadingPerms || loadingReadings) {
