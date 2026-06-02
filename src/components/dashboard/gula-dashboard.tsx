@@ -115,14 +115,14 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
   /**
    * PUSAT INGESTI DATA (Deduplikasi & Sinkronisasi)
-   * Menangani semua sumber: Dexcom, Clarity, Contour Care (Manual/Sheets)
+   * Menangani semua sumber secara terpusat: Dexcom, Clarity, Contour Care
    */
   const handleIngestData = useCallback(async (incoming: Reading[], sourceLabel: string) => {
     if (!db || !user || !isAppOwner || viewingOwner || isSyncing) return;
     
     setIsSyncing(true);
     
-    // 1. Deteksi Duplikat secara cerdas (Timestamp + Value)
+    // 1. Deteksi Duplikat di database lokal (Firestore)
     const existingMap = new Map<string, boolean>();
     allReadings.forEach(r => {
       const key = `${new Date(r.timestamp).getTime()}_${r.value}`;
@@ -135,18 +135,18 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     });
 
     if (newItems.length === 0) {
-      toast({ title: `Database Sudah Sinkron`, description: `Semua data dari ${sourceLabel} sudah ada di database.` });
+      toast({ title: `Database Sinkron`, description: `Data dari ${sourceLabel} sudah ada di database.` });
       setIsSyncing(false);
       return;
     }
 
     toast({ 
-      title: "Memproses Database Terpusat", 
-      description: `Menyisipkan ${newItems.length} data baru dari ${sourceLabel}...` 
+      title: "Sinkronisasi Database", 
+      description: `Menyimpan ${newItems.length} data baru dari ${sourceLabel}...` 
     });
 
     try {
-      // 2. Batch Write ke Firestore
+      // 2. Batch Write ke Firestore (Database Utama)
       const batchSize = 450; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
@@ -164,28 +164,27 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         });
         
         await batch.commit();
-        // Beri jeda kecil antar batch
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // 3. Sinkronisasi Google Sheets (Hanya 100 data terbaru agar tidak overload)
-      const itemsToSync = newItems.slice(-100);
+      // 3. Sinkronisasi ke Google Sheets (Database Cadangan) secara paralel
+      const itemsToSync = newItems.slice(-250); // Sync 250 terbaru saja agar tidak limit
       const syncParallel = async (items: Reading[]) => {
-        const pLimit = 5;
+        const pLimit = 5; // Jalankan 5 request sekaligus
         for (let j = 0; j < items.length; j += pLimit) {
           const chunk = items.slice(j, j + pLimit);
           await Promise.all(chunk.map(item => syncToGoogleSheets(item.value, item.timestamp)));
         }
       };
-      syncParallel(itemsToSync).catch(e => console.error("Sheets error:", e));
+      syncParallel(itemsToSync).catch(e => console.error("Sheets sync error:", e));
 
       toast({ 
-        title: "Database Diperbarui!", 
-        description: `Berhasil menambahkan ${newItems.length} data baru dari ${sourceLabel}. Duplikat telah diabaikan.` 
+        title: "Database Diperbarui", 
+        description: `Berhasil menambahkan ${newItems.length} data ke database terpusat.` 
       });
     } catch (err) {
       console.error("Ingestion Error:", err);
-      toast({ title: "Gagal Sinkronisasi", description: "Kesalahan sistem saat menulis ke database.", variant: "destructive" });
+      toast({ title: "Gagal Sinkronisasi", description: "Terjadi kesalahan saat menyimpan ke database.", variant: "destructive" });
     } finally {
       setIsSyncing(false);
     }
@@ -242,7 +241,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
         <div className="flex items-center gap-4">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-            <Database className="h-3 w-3" /> Sumber Terhubung:
+            <Database className="h-3 w-3" /> Database Terpusat:
           </span>
           {isAppOwner && (
             <Button 
@@ -251,7 +250,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               onClick={() => setViewingOwner(null)}
               className="rounded-xl h-10 px-6 font-bold"
             >
-              Data Saya
+              Data Utama
             </Button>
           )}
           {sharedPermissions?.map((perm: any) => (
@@ -268,7 +267,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         </div>
         {isSyncing && (
           <div className="flex items-center gap-2 text-primary text-xs font-bold animate-pulse">
-            <Loader2 className="h-4 w-4 animate-spin" /> Sedang Mensinkronkan...
+            <Loader2 className="h-4 w-4 animate-spin" /> Sinkronisasi Sedang Berlangsung...
           </div>
         )}
       </div>
@@ -284,7 +283,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
                   <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                  <Calendar className="h-3 w-3" /> Database: {allReadings.length} Entri
+                  <Calendar className="h-3 w-3" /> {allReadings.length} Titik Data Terkumpul
                 </div>
               </div>
               <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-2xl gap-1">
@@ -312,7 +311,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
           <Tabs defaultValue="readings" className="w-full">
             <TabsList className="bg-slate-100/50 p-1.5 rounded-[1.8rem] h-auto flex-wrap gap-1.5">
               <TabsTrigger value="readings" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
-                <History className="h-4 w-4 mr-2" /> Riwayat
+                <History className="h-4 w-4 mr-2" /> Riwayat Terpusat
               </TabsTrigger>
               <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-primary data-[state=active]:bg-white">
                 <Sparkles className="h-4 w-4 mr-2" /> Analisis AI
@@ -320,7 +319,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               {isAppOwner && !viewingOwner && (
                 <>
                   <TabsTrigger value="dexcom" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-blue-600 data-[state=active]:bg-white">
-                    <Radio className="h-4 w-4 mr-2" /> Dexcom CGM
+                    <Radio className="h-4 w-4 mr-2" /> Dexcom
                   </TabsTrigger>
                   <TabsTrigger value="clarity" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-emerald-600 data-[state=active]:bg-white">
                     <FileText className="h-4 w-4 mr-2" /> Clarity
