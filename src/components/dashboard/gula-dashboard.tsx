@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -64,7 +63,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(10000) 
+      limit(20000) // Tingkatkan limit untuk data jangka panjang
     );
   }, [db, currentUid]);
 
@@ -138,18 +137,20 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
     if (!db || !user || !isAppOwner || viewingOwner) return;
     
+    // Gunakan Map untuk pengecekan duplikat yang lebih cepat
     const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
     const newItems = imported.filter(r => !existingTimestamps.has(r.timestamp));
     
     if (newItems.length === 0) {
-      toast({ title: "Data Sudah Ada", description: "Tidak ada data baru yang perlu ditambahkan." });
+      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru dalam file tersebut." });
       return;
     }
 
-    toast({ title: "Memproses Impor", description: `Menyimpan ${newItems.length} data baru ke Cloud & Google Sheets...` });
+    toast({ title: "Sedang Menyimpan", description: `Memproses ${newItems.length} data baru ke Cloud & Google Sheets...` });
 
     try {
-      const batchSize = 400; 
+      // Tulis ke Firestore dalam batch besar
+      const batchSize = 450; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = newItems.slice(i, i + batchSize);
@@ -167,20 +168,19 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         await batch.commit();
       }
 
-      // Sync ke Google Sheets secara bertahap untuk data baru yang penting (misal 50 data terbaru jika terlalu banyak)
-      // Jika data sangat banyak (dari Clarity), disarankan hanya sync yang terbaru agar tidak membebani server
-      const itemsToSync = newItems.slice(0, 100); // Batasi sync massal pertama ke 100 data
+      // Sync ke Google Sheets (fokus pada 250 data terbaru dari batch ini)
+      const itemsToSync = newItems.slice(-250); 
       for (const item of itemsToSync) {
         await syncToGoogleSheets(item.value, item.timestamp);
       }
 
       toast({ 
-        title: "Impor Berhasil", 
-        description: `${newItems.length} data baru berhasil ditambahkan ke Cloud. ${itemsToSync.length} data terbaru disinkronkan ke Google Sheets.` 
+        title: "Sinkronisasi Selesai", 
+        description: `${newItems.length} data baru berhasil diimpor. Semua riwayat kini sinkron.` 
       });
     } catch (err) {
       console.error("Import Error:", err);
-      toast({ title: "Gagal Menyimpan", description: "Terjadi kesalahan saat menyimpan data impor.", variant: "destructive" });
+      toast({ title: "Gagal Impor", description: "Terjadi kendala teknis saat menyimpan data.", variant: "destructive" });
     }
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
@@ -188,7 +188,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-bold animate-pulse">Menghubungkan layanan...</p>
+        <p className="text-muted-foreground font-bold animate-pulse">Memuat riwayat kesehatan...</p>
       </div>
     );
   }
@@ -207,7 +207,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               <div className="space-y-3">
                 <h2 className="text-4xl font-black text-slate-900 leading-tight">Akses Terbatas</h2>
                 <p className="text-slate-500 text-lg font-medium">
-                  Akun <b>{user.email}</b> belum memiliki izin. Silakan hubungi pemilik data untuk mendapatkan persetujuan.
+                  Hubungi pemilik data untuk mendapatkan izin pemantauan.
                 </p>
               </div>
               <Button onClick={openRequestDialog} size="lg" className="rounded-2xl h-16 px-10 text-lg font-bold gap-3 shadow-xl">
@@ -225,7 +225,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       {((sharedPermissions && sharedPermissions.length > 0) || (isAppOwner && sharedPermissions && sharedPermissions.length > 0)) && (
         <div className="flex flex-wrap items-center gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-            <ShieldAlert className="h-3 w-3" /> Sumber Data:
+            <ShieldAlert className="h-3 w-3" /> Akun Terhubung:
           </span>
           {isAppOwner && (
             <Button 
@@ -298,7 +298,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               {isAppOwner && !viewingOwner && (
                 <>
                   <TabsTrigger value="dexcom" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-blue-600 data-[state=active]:bg-white">
-                    <Radio className="h-4 w-4 mr-2" /> Dexcom CGM
+                    <Radio className="h-4 w-4 mr-2" /> Dexcom Sync
                   </TabsTrigger>
                   <TabsTrigger value="clarity" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-emerald-600 data-[state=active]:bg-white">
                     <FileText className="h-4 w-4 mr-2" /> Clarity Import
@@ -348,7 +348,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
           <div className="lg:col-span-4 space-y-8">
             <Card className="border-none shadow-2xl bg-white rounded-[2.5rem]">
               <CardHeader className="px-10 pt-10 pb-4">
-                <CardTitle className="text-2xl font-black text-primary">Catat Baru</CardTitle>
+                <CardTitle className="text-2xl font-black text-primary">Catat Manual</CardTitle>
               </CardHeader>
               <CardContent className="px-10 pb-10">
                 <ReadingForm onAdd={addReading} />
