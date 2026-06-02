@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Activity, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Activity, Loader2, RefreshCw, ShieldCheck, Info } from "lucide-react";
 import { syncDexcomData } from "@/app/actions/dexcom-action";
 import { toast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
@@ -89,6 +89,18 @@ export function DexcomSync({ onSyncComplete, isOwner }: DexcomSyncProps) {
         </div>
       </CardHeader>
       <CardContent className="p-8 space-y-6">
+        <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3">
+          <Info className="h-5 w-5 text-blue-600 shrink-0" />
+          <div className="text-sm text-blue-800">
+            <p className="font-bold mb-1">Cara Menghubungkan:</p>
+            <ol className="list-decimal ml-4 space-y-1 opacity-80">
+              <li>Buka aplikasi <b>Dexcom Mobile</b> di HP Anda.</li>
+              <li>Aktifkan fitur <b>Share</b> di dalam aplikasi tersebut.</li>
+              <li>Gunakan kredensial akun Dexcom Anda di bawah ini.</li>
+            </ol>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-3">
             <Label className="text-xs font-black uppercase tracking-widest text-slate-400">Username Dexcom</Label>
