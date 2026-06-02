@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { useFirestore, useUser, useCollection } from "@/firebase";
+import { useFirestore, useUser, useCollection, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { collection, query, where, deleteDoc, doc, setDoc } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,9 @@ export function SharedAccessManager() {
   const { user } = useUser();
   const [processingId, setProcessingId] = useState<string | null>(null);
   
-  // Memastikan email selalu dalam format huruf kecil dan bersih
   const userEmail = useMemo(() => user?.email?.toLowerCase().trim() || "", [user]);
   const userUid = useMemo(() => user?.uid || "", [user]);
 
-  // Query Kotak Masuk: Menampilkan permintaan yang ditujukan ke email SAYA yang sedang aktif
   const requestsQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(
@@ -28,7 +26,6 @@ export function SharedAccessManager() {
     );
   }, [db, userEmail]);
 
-  // Query Tamu Aktif: Menampilkan siapa saja yang telah SAYA beri izin
   const permissionsQuery = useMemo(() => {
     if (!db || !userUid) return null;
     return query(
@@ -40,68 +37,83 @@ export function SharedAccessManager() {
   const { data: rawRequests, loading: loadingRequests } = useCollection(requestsQuery);
   const { data: permissions, loading: loadingPermissions } = useCollection(permissionsQuery);
 
-  // Hanya tampilkan permintaan dengan status 'pending'
   const requests = useMemo(() => {
     return (rawRequests || []).filter((req: any) => req.status === "pending");
   }, [rawRequests]);
 
-  const approveRequest = async (request: any) => {
+  const approveRequest = (request: any) => {
     if (!db || !userUid || !request?.requesterEmail) return;
     
     setProcessingId(request.id);
-    try {
-      // Buat ID izin yang unik berdasarkan email tamu dan UID pemilik
-      const permId = `${request.requesterEmail.replace(/[@.]/g, '_')}_${userUid}`;
-      const permissionsRef = doc(db, "permissions", permId);
-      const requestsRef = doc(db, "requests", request.id);
-      
-      // Simpan izin baru
-      await setDoc(permissionsRef, {
-        ownerUid: userUid,
-        ownerEmail: userEmail,
-        guestEmail: request.requesterEmail.toLowerCase().trim(),
-        grantedAt: new Date().toISOString()
-      });
+    const permId = `${request.requesterEmail.replace(/[@.]/g, '_')}_${userUid}`;
+    const permissionsRef = doc(db, "permissions", permId);
+    const requestsRef = doc(db, "requests", request.id);
+    
+    const permissionData = {
+      ownerUid: userUid,
+      ownerEmail: userEmail,
+      guestEmail: request.requesterEmail.toLowerCase().trim(),
+      grantedAt: new Date().toISOString()
+    };
 
-      // Hapus permintaan dari kotak masuk setelah disetujui
-      await deleteDoc(requestsRef);
-
-      toast({ 
-        title: "Akses Disetujui", 
-        description: `${request.requesterEmail} kini dapat memantau data Anda.` 
+    setDoc(permissionsRef, permissionData)
+      .then(() => {
+        deleteDoc(requestsRef).catch(() => {});
+        toast({ 
+          title: "Akses Disetujui", 
+          description: `${request.requesterEmail} kini dapat memantau data Anda.` 
+        });
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: permissionsRef.path,
+          operation: 'write',
+          requestResourceData: permissionData
+        }));
+      })
+      .finally(() => {
+        setProcessingId(null);
       });
-    } catch (err) {
-      console.error("Gagal menyetujui:", err);
-      toast({ title: "Gagal menyetujui permintaan", variant: "destructive" });
-    } finally {
-      setProcessingId(null);
-    }
   };
 
-  const revokeAccess = async (permId: string) => {
+  const revokeAccess = (permId: string) => {
     if (!db) return;
     setProcessingId(permId);
-    try {
-      await deleteDoc(doc(db, "permissions", permId));
-      toast({ title: "Akses Dicabut", description: "Tamu tersebut tidak lagi memiliki akses." });
-    } catch (err) {
-      toast({ title: "Gagal mencabut akses", variant: "destructive" });
-    } finally {
-      setProcessingId(null);
-    }
+    const permRef = doc(db, "permissions", permId);
+    
+    deleteDoc(permRef)
+      .then(() => {
+        toast({ title: "Akses Dicabut", description: "Tamu tersebut tidak lagi memiliki akses." });
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: permRef.path,
+          operation: 'delete'
+        }));
+      })
+      .finally(() => {
+        setProcessingId(null);
+      });
   };
 
-  const ignoreRequest = async (requestId: string) => {
+  const ignoreRequest = (requestId: string) => {
     if (!db) return;
     setProcessingId(requestId);
-    try {
-      await deleteDoc(doc(db, "requests", requestId));
-      toast({ title: "Permintaan Dihapus" });
-    } catch (err) {
-      toast({ title: "Gagal menghapus permintaan", variant: "destructive" });
-    } finally {
-      setProcessingId(null);
-    }
+    const reqRef = doc(db, "requests", requestId);
+    
+    deleteDoc(reqRef)
+      .then(() => {
+        toast({ title: "Permintaan Dihapus" });
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: reqRef.path,
+          operation: 'delete'
+        }));
+      })
+      .finally(() => {
+        setProcessingId(null);
+      });
   };
 
   const safeFormatDate = (timestamp: any) => {

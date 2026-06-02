@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import { GulaDashboard } from "@/components/dashboard/gula-dashboard";
-import { useUser, useAuth, useFirestore } from "@/firebase";
+import { useUser, useAuth, useFirestore, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +37,7 @@ export default function Home() {
     }
   };
 
-  const handleRequestAccess = async () => {
+  const handleRequestAccess = () => {
     if (!db || !user?.email || !requestEmail) {
       toast({ title: "Data Tidak Lengkap", description: "Silakan isi email pemilik.", variant: "destructive" });
       return;
@@ -47,34 +47,33 @@ export default function Home() {
     const targetEmail = requestEmail.toLowerCase().trim();
     const myEmail = user.email.toLowerCase().trim();
 
-    try {
-      const requestData = {
-        requesterEmail: myEmail,
-        ownerEmail: targetEmail,
-        status: "pending",
-        timestamp: new Date().toISOString()
-      };
+    const requestData = {
+      requesterEmail: myEmail,
+      ownerEmail: targetEmail,
+      status: "pending",
+      timestamp: new Date().toISOString()
+    };
 
-      // Simpan permintaan ke Firestore
-      await addDoc(collection(db, "requests"), requestData);
-
-      toast({ 
-        title: "Permintaan Dikirim", 
-        description: `Berhasil mengirim permintaan akses ke ${targetEmail}.` 
+    // Gunakan pola non-blocking addDoc
+    addDoc(collection(db, "requests"), requestData)
+      .then(() => {
+        toast({ 
+          title: "Permintaan Dikirim", 
+          description: `Berhasil mengirim permintaan akses ke ${targetEmail}.` 
+        });
+        setRequestEmail("");
+        setIsDialogOpen(false);
+      })
+      .catch(async (error) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'requests',
+          operation: 'create',
+          requestResourceData: requestData
+        }));
+      })
+      .finally(() => {
+        setIsSending(false);
       });
-      
-      setRequestEmail("");
-      setIsDialogOpen(false);
-    } catch (error: any) {
-      console.error("Gagal mengirim permintaan:", error);
-      toast({ 
-        title: "Gagal Mengirim", 
-        description: "Terjadi kendala saat menghubungi server. Silakan coba lagi.", 
-        variant: "destructive" 
-      });
-    } finally {
-      setIsSending(false);
-    }
   };
 
   if (loading) {

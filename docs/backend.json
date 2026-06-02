@@ -18,6 +18,10 @@
         "userId": {
           "type": "string",
           "description": "The UID of the user who owns this reading"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Server timestamp of creation"
         }
       },
       "required": [
