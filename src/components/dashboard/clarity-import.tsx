@@ -63,7 +63,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
     }
 
     setIsProcessing(true);
-    toast({ title: "Memproses File", description: "Sedang membaca data glukosa..." });
+    toast({ title: "Membaca File", description: "Menganalisis data glukosa..." });
     
     const reader = new FileReader();
 
@@ -80,14 +80,12 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         let timestampIdx = -1;
         let glucoseIdx = -1;
 
-        // 1. Deteksi Header & Delimiter secara dinamis (Cari kolom waktu dan glukosa)
+        // 1. Deteksi Header & Delimiter secara dinamis
         for (let i = 0; i < Math.min(lines.length, 150); i++) {
           const line = lines[i].toLowerCase();
-          // Coba beberapa delimiter umum
           const currentDelimiter = line.includes(";") ? ";" : (line.includes(",") ? "," : "\t");
           const headers = line.split(currentDelimiter).map(h => h.trim().replace(/"/g, ""));
           
-          // Keyword pencarian diperluas untuk format Jerman (Gerätezeit, Glukosewert)
           const hasTime = headers.some(h => 
             h.includes("timestamp") || h.includes("zeitstempel") || 
             h.includes("gerätezeit") || h.includes("systemzeit") ||
@@ -120,7 +118,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         }
 
         if (headerIndex === -1) {
-          throw new Error("Format header tidak ditemukan. Pastikan Anda mengunduh file 'Export' (Ekspor) dari portal Clarity.");
+          throw new Error("Format Dexcom Clarity tidak dikenali. Pastikan ini file CSV asli.");
         }
 
         // 2. Ekstraksi Data
@@ -143,7 +141,6 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           } else if (lowValue.includes("high") || lowValue.includes("hoch")) {
             value = 401;
           } else {
-            // Tangani format desimal Eropa (koma)
             const cleanValue = valuePart.replace(",", ".");
             value = parseFloat(cleanValue);
           }
@@ -160,13 +157,10 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         }
 
         if (readings.length > 0) {
-          toast({ 
-            title: "Data Ditemukan", 
-            description: `Mempersiapkan ${readings.length} data glukosa untuk disimpan.` 
-          });
+          // Kirim ke Ingestion Hub
           onImportComplete(readings);
         } else {
-          throw new Error("Ditemukan 0 data glukosa yang valid. Periksa isi file CSV Anda.");
+          throw new Error("Tidak ditemukan data glukosa yang valid di file ini.");
         }
       } catch (error: any) {
         toast({
@@ -203,14 +197,12 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
             <h4 className="font-black text-slate-800 flex items-center gap-2">
               <Info className="h-5 w-5 text-blue-500" />
-              Petunjuk Ekspor Jerman:
+              Petunjuk Impor:
             </h4>
             <ol className="text-sm text-slate-600 space-y-3 list-decimal ml-4 font-medium">
-              <li>Login ke <b>clarity.dexcom.eu</b>.</li>
-              <li>Pilih menu <b>Export (Ekspor)</b> di sisi kiri.</li>
-              <li>Pilih rentang waktu (misal: 14 hari atau 30 hari).</li>
-              <li>Klik <b>Export (Ekspor)</b> dan pilih format <b>CSV</b>.</li>
-              <li>Unggah file CSV yang terunduh di bawah ini.</li>
+              <li>Pilih menu <b>Export (Ekspor)</b> di portal Clarity.</li>
+              <li>Pilih format <b>CSV</b> dan unduh filenya.</li>
+              <li>Unggah file tersebut di bawah ini untuk disimpan secara permanen.</li>
             </ol>
           </div>
 
@@ -219,13 +211,13 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
               <Upload className="h-10 w-10" />
             </div>
             
-            <Label htmlFor="clarity-upload-final" className="cursor-pointer">
+            <Label htmlFor="clarity-upload-final-2" className="cursor-pointer">
               <div className="bg-emerald-600 hover:bg-emerald-700 text-white h-16 px-10 rounded-2xl flex items-center justify-center font-black text-lg gap-3 shadow-lg transition-all active:scale-95">
                 {isProcessing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
                 Pilih File CSV Clarity
               </div>
               <Input 
-                id="clarity-upload-final" 
+                id="clarity-upload-final-2" 
                 type="file" 
                 accept=".csv" 
                 className="hidden" 
@@ -233,8 +225,8 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
                 disabled={isProcessing}
               />
             </Label>
-            <p className="mt-4 text-xs text-slate-400 font-bold uppercase tracking-widest">
-              Sistem akan otomatis menghapus duplikat data
+            <p className="mt-4 text-xs text-slate-400 font-bold uppercase tracking-widest text-center">
+              Data akan otomatis difilter dari duplikat di database terpusat
             </p>
           </div>
         </CardContent>
@@ -242,3 +234,4 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
     </div>
   );
 }
+

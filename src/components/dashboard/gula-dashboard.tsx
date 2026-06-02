@@ -44,13 +44,13 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const { user } = useUser();
   const [minRange, setMinRange] = useState<number>(70);
   const [maxRange, setMaxRange] = useState<number>(140);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('24h');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [viewingOwner, setViewingOwner] = useState<{uid: string, email: string} | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
   const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
-  const isAppOwner = useMemo(() => userEmail === APP_OWNER_EMAIL.toLowerCase(), [userEmail]);
-
+  
+  // Deteksi izin akses
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -58,7 +58,11 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   
   const { data: sharedPermissions, loading: loadingPerms } = useCollection(sharedAccessQuery);
 
-  const currentUid = viewingOwner ? viewingOwner.uid : (isAppOwner ? user?.uid : null);
+  // LOGIKA PENTING: Setiap user bisa melihat datanya sendiri, atau data orang yang memberi izin.
+  const currentUid = useMemo(() => {
+    if (viewingOwner) return viewingOwner.uid;
+    return user?.uid || null;
+  }, [viewingOwner, user]);
 
   const readingsQuery = useMemo(() => {
     if (!db || !currentUid) return null;
@@ -117,38 +121,42 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
    * PUSAT INGESTI DATA (Deduplikasi & Sinkronisasi Massal)
    */
   const handleIngestData = useCallback(async (incoming: Reading[], sourceLabel: string) => {
-    if (!db || !user || !isAppOwner || viewingOwner || isSyncing || loadingReadings) return;
+    if (!db || !user || viewingOwner || isSyncing || loadingReadings) return;
     
     setIsSyncing(true);
     
-    // 1. Identifikasi data yang sudah ada (Deduplikasi)
-    const existingMap = new Map<number, boolean>();
+    // 1. Identifikasi data yang sudah ada (Deduplikasi berbasis Waktu & Nilai)
+    const existingMap = new Map<string, boolean>();
     allReadings.forEach(r => {
-      existingMap.set(new Date(r.timestamp).getTime(), true);
+      const key = `${new Date(r.timestamp).getTime()}-${r.value}`;
+      existingMap.set(key, true);
     });
 
     const newItems = incoming.filter(r => {
       const timeKey = new Date(r.timestamp).getTime();
-      return !existingMap.has(timeKey);
+      const key = `${timeKey}-${r.value}`;
+      return !isNaN(timeKey) && !existingMap.has(key);
     });
 
     if (newItems.length === 0) {
       toast({ 
-        title: "Database Sudah Sinkron", 
-        description: `Tidak ada data baru dari ${sourceLabel}. Semua data sudah ada.` 
+        title: "Database Sinkron", 
+        description: `Tidak ada data baru yang unik dari ${sourceLabel}.` 
       });
       setIsSyncing(false);
       return;
     }
 
     toast({ 
-      title: "Memperbarui Database", 
-      description: `Menyimpan ${newItems.length} data baru dari ${sourceLabel}...` 
+      title: "Menyimpan Data", 
+      description: `Sedang memproses ${newItems.length} data baru dari ${sourceLabel}...` 
     });
 
     try {
-      // 2. Batch Write ke Firestore (Database Utama)
+      // 2. Batch Write ke Firestore (Chunking untuk stabilitas)
       const batchSize = 450; 
+      let totalSaved = 0;
+
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = newItems.slice(i, i + batchSize);
@@ -162,17 +170,17 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
             source: sourceLabel,
             createdAt: serverTimestamp()
           });
+          totalSaved++;
         });
         
         await batch.commit();
-        // Delay singkat untuk mencegah limitasi rate Cloud Firestore
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // 3. Sinkronisasi ke Google Sheets secara paralel
-      const itemsToSync = newItems.slice(-300); // Batasi sinkronisasi Sheets agar tidak timeout
+      // 3. Sinkronisasi ke Google Sheets secara paralel (Latar Belakang)
+      const itemsToSync = newItems.slice(-500); 
       const syncParallel = async (items: Reading[]) => {
-        const pLimit = 8; 
+        const pLimit = 5; 
         for (let j = 0; j < items.length; j += pLimit) {
           const chunk = items.slice(j, j + pLimit);
           await Promise.all(chunk.map(item => syncToGoogleSheets(item.value, item.timestamp)));
@@ -182,7 +190,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
       toast({ 
         title: "Berhasil Diperbarui", 
-        description: `${newItems.length} data baru telah masuk ke database terpusat.` 
+        description: `${totalSaved} data baru telah disimpan di database terpusat.` 
       });
     } catch (err) {
       console.error("Ingestion Error:", err);
@@ -194,7 +202,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     } finally {
       setIsSyncing(false);
     }
-  }, [db, user, isAppOwner, viewingOwner, allReadings, isSyncing, loadingReadings]);
+  }, [db, user, viewingOwner, allReadings, isSyncing, loadingReadings]);
 
   const addManualReading = (value: number, timestamp: string) => {
     const reading: Reading = {
@@ -206,59 +214,34 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     handleIngestData([reading], "Manual");
   };
 
-  if (loadingPerms || loadingReadings) {
+  if (loadingReadings || loadingPerms) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-bold animate-pulse">Menghubungkan ke Database Terpusat...</p>
+        <p className="text-muted-foreground font-bold animate-pulse">Memuat Database Terpusat...</p>
       </div>
     );
   }
 
-  const isGuestWithNoAccess = !isAppOwner && !viewingOwner && (!sharedPermissions || sharedPermissions.length === 0);
-
-  if (isGuestWithNoAccess && user) {
-    return (
-      <div className="max-w-2xl mx-auto py-12">
-        <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden">
-          <CardContent className="p-16 text-center space-y-8">
-            <div className="w-24 h-24 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
-              <Lock className="h-12 w-12 text-amber-600" />
-            </div>
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <h2 className="text-4xl font-black text-slate-900 leading-tight">Akses Terbatas</h2>
-                <p className="text-slate-500 text-lg font-medium">
-                  Hubungi pemilik data untuk mendapatkan izin pemantauan.
-                </p>
-              </div>
-              <Button onClick={openRequestDialog} size="lg" className="rounded-2xl h-16 px-10 text-lg font-bold gap-3 shadow-xl">
-                <UserPlus className="h-6 w-6" /> Minta Akses Sekarang
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Cek apakah user memiliki akses ke data manapun
+  const hasNoDataAccess = !viewingOwner && allReadings.length === 0 && (!sharedPermissions || sharedPermissions.length === 0);
 
   return (
     <div className="space-y-8 font-body animate-in fade-in duration-500">
+      {/* Header Database Hub */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
         <div className="flex items-center gap-4">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
-            <Database className="h-3 w-3" /> Database Terpusat:
+            <Database className="h-3 w-3" /> Sumber Data:
           </span>
-          {isAppOwner && (
-            <Button 
-              variant={!viewingOwner ? "default" : "outline"} 
-              size="sm" 
-              onClick={() => setViewingOwner(null)}
-              className="rounded-xl h-10 px-6 font-bold"
-            >
-              Data Utama
-            </Button>
-          )}
+          <Button 
+            variant={!viewingOwner ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setViewingOwner(null)}
+            className="rounded-xl h-10 px-6 font-bold"
+          >
+            Database Saya
+          </Button>
           {sharedPermissions?.map((perm: any) => (
             <Button 
               key={perm.id}
@@ -273,13 +256,13 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         </div>
         {isSyncing && (
           <div className="flex items-center gap-2 text-primary text-xs font-bold animate-pulse">
-            <Loader2 className="h-4 w-4 animate-spin" /> Sinkronisasi Sedang Berlangsung...
+            <Loader2 className="h-4 w-4 animate-spin" /> Menulis ke Firestore...
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className={cn("space-y-8", (isAppOwner && !viewingOwner) ? "lg:col-span-8" : "lg:col-span-12")}>
+        <div className={cn("space-y-8", (!viewingOwner) ? "lg:col-span-8" : "lg:col-span-12")}>
           <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
           
           <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2.5rem]">
@@ -289,7 +272,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
                   <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                  <Calendar className="h-3 w-3" /> {allReadings.length} Titik Data Terkumpul
+                  <Calendar className="h-3 w-3" /> {allReadings.length} Total Data
                 </div>
               </div>
               <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-2xl gap-1">
@@ -317,18 +300,18 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
           <Tabs defaultValue="readings" className="w-full">
             <TabsList className="bg-slate-100/50 p-1.5 rounded-[1.8rem] h-auto flex-wrap gap-1.5">
               <TabsTrigger value="readings" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
-                <History className="h-4 w-4 mr-2" /> Riwayat Terpusat
+                <History className="h-4 w-4 mr-2" /> Riwayat Lengkap
               </TabsTrigger>
               <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-primary data-[state=active]:bg-white">
                 <Sparkles className="h-4 w-4 mr-2" /> Analisis AI
               </TabsTrigger>
-              {isAppOwner && !viewingOwner && (
+              {!viewingOwner && (
                 <>
                   <TabsTrigger value="dexcom" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-blue-600 data-[state=active]:bg-white">
-                    <Radio className="h-4 w-4 mr-2" /> Dexcom
+                    <Radio className="h-4 w-4 mr-2" /> Dexcom Sync
                   </TabsTrigger>
                   <TabsTrigger value="clarity" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-emerald-600 data-[state=active]:bg-white">
-                    <FileText className="h-4 w-4 mr-2" /> Clarity
+                    <FileText className="h-4 w-4 mr-2" /> Impor Clarity
                   </TabsTrigger>
                   <TabsTrigger value="sync" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
                     <FileSpreadsheet className="h-4 w-4 mr-2" /> Contour Care
@@ -347,7 +330,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               <TabsContent value="ai">
                 <AIInsightsCard readings={allReadings} minRange={minRange} maxRange={maxRange} />
               </TabsContent>
-              {isAppOwner && !viewingOwner && (
+              {!viewingOwner && (
                 <>
                   <TabsContent value="dexcom">
                     <DexcomSync onSyncComplete={(data) => handleIngestData(data, "Dexcom CGM")} isOwner={true} />
@@ -371,7 +354,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
           </Tabs>
         </div>
 
-        {isAppOwner && !viewingOwner && (
+        {!viewingOwner && (
           <div className="lg:col-span-4 space-y-8">
             <Card className="border-none shadow-2xl bg-white rounded-[2.5rem]">
               <CardHeader className="px-10 pt-10 pb-4">
@@ -400,3 +383,4 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     </div>
   );
 }
+
