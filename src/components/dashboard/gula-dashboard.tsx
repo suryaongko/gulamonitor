@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -63,7 +64,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(30000) // Batas lebih tinggi untuk mengakomodasi impor Clarity
+      limit(50000) // Batas 50.000 untuk mengakomodasi seluruh riwayat Clarity
     );
   }, [db, currentUid]);
 
@@ -137,19 +138,22 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
     if (!db || !user || !isAppOwner || viewingOwner) return;
     
-    // Normalisasi timestamp ke milidetik untuk pengecekan duplikat yang akurat
+    // Normalisasi waktu ke UNIX untuk deteksi duplikat yang akurat
     const existingTimes = new Set(allReadings.map(r => new Date(r.timestamp).getTime()));
     const newItems = imported.filter(r => !existingTimes.has(new Date(r.timestamp).getTime()));
     
     if (newItems.length === 0) {
-      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru yang belum ada di database." });
+      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru." });
       return;
     }
 
-    toast({ title: "Menyimpan Data Baru", description: `Memproses ${newItems.length} baris data unik ke Cloud...` });
+    toast({ 
+      title: "Memulai Impor Massal", 
+      description: `Memproses ${newItems.length} data baru...` 
+    });
 
     try {
-      // Gunakan batch untuk efisiensi
+      // 1. Simpan ke Firestore dalam Batch (400 per batch)
       const batchSize = 400; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
@@ -168,19 +172,26 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         await batch.commit();
       }
 
-      // Sync ke Google Sheets (hanya 150 data terbaru agar tidak timeout)
-      const itemsToSync = newItems.slice(-150); 
-      for (const item of itemsToSync) {
-        await syncToGoogleSheets(item.value, item.timestamp);
-      }
+      // 2. Sinkronisasi ke Google Sheets (Batch Paralel agar tidak hang)
+      const itemsToSync = newItems.slice(-300); // Batas 300 terbaru untuk Sheets guna mencegah overload
+      const syncInParallel = async (items: Reading[]) => {
+        const parallelLimit = 10; // 10 request sekaligus
+        for (let j = 0; j < items.length; j += parallelLimit) {
+          const chunk = items.slice(j, j + parallelLimit);
+          await Promise.all(chunk.map(item => syncToGoogleSheets(item.value, item.timestamp)));
+        }
+      };
+      
+      // Jalankan sinkronisasi Sheets di latar belakang
+      syncInParallel(itemsToSync).catch(e => console.error("Sheets sync error:", e));
 
       toast({ 
-        title: "Impor Selesai!", 
-        description: `${newItems.length} data baru berhasil ditambahkan ke riwayat.` 
+        title: "Impor Berhasil!", 
+        description: `${newItems.length} data telah ditambahkan ke database.` 
       });
     } catch (err) {
       console.error("Import Error:", err);
-      toast({ title: "Gagal Impor", description: "Terjadi kendala saat menyimpan data masal.", variant: "destructive" });
+      toast({ title: "Gagal Impor", description: "Terjadi kesalahan saat menyimpan data.", variant: "destructive" });
     }
   }, [db, user, isAppOwner, viewingOwner, allReadings]);
 
