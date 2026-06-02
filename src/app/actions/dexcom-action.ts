@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
  * @fileOverview Server Action untuk berkomunikasi dengan Dexcom Share API.
- * Digunakan untuk bypass CORS dan melindungi komunikasi kredensial.
+ * Mendukung server US dan Internasional (OUS) untuk pengguna di Jerman/Eropa.
  */
 
 const DEXCOM_BASE_URL_US = 'https://share1.dexcom.com/ShareWebServices/Services';
@@ -16,6 +15,8 @@ export async function syncDexcomData(credentials: {
   minutes: number;
 }) {
   const baseUrl = credentials.isUS ? DEXCOM_BASE_URL_US : DEXCOM_BASE_URL_OUS;
+
+  console.log(`Memulai sinkronisasi Dexcom wilayah: ${credentials.isUS ? 'US' : 'Internasional/Jerman'}`);
 
   try {
     // 1. Login untuk mendapatkan Session ID
@@ -35,18 +36,19 @@ export async function syncDexcomData(credentials: {
 
     if (!loginResponse.ok) {
       const errorText = await loginResponse.text();
-      throw new Error(`Login Dexcom Gagal: ${errorText || loginResponse.statusText}`);
+      throw new Error(`Login Dexcom Gagal (${loginResponse.status}): ${errorText || 'Kredensial salah atau akun terkunci.'}`);
     }
 
-    // Ambil text mentah karena Dexcom sering mengembalikan GUID dalam kutipan, bukan JSON object
+    // Ambil text mentah karena Dexcom mengembalikan GUID dalam kutipan (misal: "00000000-0000...")
     const rawSessionId = await loginResponse.text();
     const sessionId = rawSessionId.replace(/"/g, '').trim();
 
     if (!sessionId || sessionId.length < 10) {
-      throw new Error('ID Sesi Dexcom tidak valid atau akun terkunci.');
+      throw new Error('Gagal mendapatkan ID Sesi yang valid. Periksa apakah fitur Share sudah aktif di app Dexcom.');
     }
 
     // 2. Ambil nilai glukosa terbaru
+    // Parameter minutes menentukan seberapa jauh data yang ditarik (maks 1440 = 24 jam)
     const glucoseResponse = await fetch(
       `${baseUrl}/Publisher/ReadPublisherLatestGlucoseValues?sessionId=${sessionId}&minutes=${credentials.minutes}&maxCount=288`,
       {
@@ -62,7 +64,7 @@ export async function syncDexcomData(credentials: {
 
     if (!glucoseResponse.ok) {
       const errorText = await glucoseResponse.text();
-      throw new Error(`Gagal mengambil data glukosa: ${errorText || glucoseResponse.statusText}`);
+      throw new Error(`Gagal menarik data glukosa: ${errorText || 'Server Dexcom tidak merespon.'}`);
     }
 
     const data = await glucoseResponse.json();
@@ -71,10 +73,9 @@ export async function syncDexcomData(credentials: {
       return [];
     }
 
-    // Map data Dexcom ke format Reading kita
-    // Format Dexcom: { Value: 120, ST: "/Date(1635330600000)/", ... }
+    // Map data Dexcom ke format internal kita
     return data.map((item: any) => {
-      // Ekstrak angka timestamp dari format /Date(ms)/
+      // Format Dexcom: ST: "/Date(1635330600000)/"
       const match = item.ST.match(/\d+/);
       const timestampMs = match ? parseInt(match[0]) : Date.now();
       
@@ -86,6 +87,6 @@ export async function syncDexcomData(credentials: {
 
   } catch (error: any) {
     console.error('Dexcom Sync Error:', error);
-    throw new Error(error.message || 'Terjadi kesalahan sistem saat menghubungi Dexcom.');
+    throw new Error(error.message || 'Koneksi ke server Dexcom gagal. Pastikan HP Anda terhubung internet dan fitur Share aktif.');
   }
 }
