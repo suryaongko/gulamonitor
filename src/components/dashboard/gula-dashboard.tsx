@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
@@ -14,7 +15,7 @@ import { ClarityImport } from "./clarity-import";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText } from "lucide-react";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText, Calendar } from "lucide-react";
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,8 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmNWxysmsd30pO
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
 const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
 
+type TimeFilter = '3h' | '6h' | '12h' | '24h' | '7d' | '14d' | 'all';
+
 interface GulaDashboardProps {
   openRequestDialog?: () => void;
 }
@@ -40,7 +43,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const { user } = useUser();
   const [minRange, setMinRange] = useState<number>(70);
   const [maxRange, setMaxRange] = useState<number>(140);
-  const [timeFilter, setTimeFilter] = useState<'all' | '24h'>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('24h');
   const [viewingOwner, setViewingOwner] = useState<{uid: string, email: string} | null>(null);
 
   const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
@@ -61,7 +64,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(5000) // Ditingkatkan untuk mendukung impor data riwayat Clarity yang banyak
+      limit(10000) 
     );
   }, [db, currentUid]);
 
@@ -74,9 +77,40 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   const filteredReadings = useMemo(() => {
     if (timeFilter === 'all') return allReadings;
     const now = new Date();
-    const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    return allReadings.filter(r => new Date(r.timestamp) >= past24h);
+    let filterMs = 0;
+
+    switch (timeFilter) {
+      case '3h': filterMs = 3 * 60 * 60 * 1000; break;
+      case '6h': filterMs = 6 * 60 * 60 * 1000; break;
+      case '12h': filterMs = 12 * 60 * 60 * 1000; break;
+      case '24h': filterMs = 24 * 60 * 60 * 1000; break;
+      case '7d': filterMs = 7 * 24 * 60 * 60 * 1000; break;
+      case '14d': filterMs = 14 * 24 * 60 * 60 * 1000; break;
+    }
+
+    const pastDate = new Date(now.getTime() - filterMs);
+    return allReadings.filter(r => new Date(r.timestamp) >= pastDate);
   }, [allReadings, timeFilter]);
+
+  const syncToGoogleSheets = async (value: number, timestamp: string) => {
+    if (!APPS_SCRIPT_URL || !user?.email) return;
+
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ 
+          value, 
+          timestamp, 
+          userEmail: user.email,
+          timezone: "Europe/Berlin"
+        }),
+      });
+    } catch (err) {
+      console.warn("Sync to Sheets failed:", err);
+    }
+  };
 
   const addReading = async (value: number, timestamp: string) => {
     if (!db || !user || !isAppOwner || viewingOwner) return; 
@@ -97,27 +131,13 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         }));
       });
 
-    if (APPS_SCRIPT_URL) {
-      fetch(APPS_SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ 
-          value, 
-          timestamp, 
-          userEmail: user.email,
-          timezone: "Europe/Berlin"
-        }),
-      }).catch(err => console.warn("Sync Warning:", err));
-    }
-
+    syncToGoogleSheets(value, timestamp);
     toast({ title: "Data Dicatat!", description: "Tersimpan di Cloud & Google Sheets." });
   };
 
   const handleImportedReadings = useCallback(async (imported: Reading[]) => {
     if (!db || !user || !isAppOwner || viewingOwner) return;
     
-    // Gunakan Set untuk pencarian cepat data yang sudah ada (untuk menghindari duplikasi)
     const existingTimestamps = new Set(allReadings.map(r => r.timestamp));
     const newItems = imported.filter(r => !existingTimestamps.has(r.timestamp));
     
@@ -126,11 +146,10 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       return;
     }
 
-    toast({ title: "Memproses Impor", description: `Menyimpan ${newItems.length} data baru ke database...` });
+    toast({ title: "Memproses Impor", description: `Menyimpan ${newItems.length} data baru ke Cloud & Google Sheets...` });
 
     try {
-      // Gunakan batch untuk efisiensi penyimpanan massal
-      const batchSize = 400; // Limit Firestore adalah 500 per batch
+      const batchSize = 400; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = newItems.slice(i, i + batchSize);
@@ -147,7 +166,18 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         
         await batch.commit();
       }
-      toast({ title: "Impor Berhasil", description: `${newItems.length} data baru berhasil ditambahkan.` });
+
+      // Sync ke Google Sheets secara bertahap untuk data baru yang penting (misal 50 data terbaru jika terlalu banyak)
+      // Jika data sangat banyak (dari Clarity), disarankan hanya sync yang terbaru agar tidak membebani server
+      const itemsToSync = newItems.slice(0, 100); // Batasi sync massal pertama ke 100 data
+      for (const item of itemsToSync) {
+        await syncToGoogleSheets(item.value, item.timestamp);
+      }
+
+      toast({ 
+        title: "Impor Berhasil", 
+        description: `${newItems.length} data baru berhasil ditambahkan ke Cloud. ${itemsToSync.length} data terbaru disinkronkan ke Google Sheets.` 
+      });
     } catch (err) {
       console.error("Import Error:", err);
       toast({ title: "Gagal Menyimpan", description: "Terjadi kesalahan saat menyimpan data impor.", variant: "destructive" });
@@ -226,30 +256,30 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
           <MetricsGrid readings={allReadings} minRange={minRange} maxRange={maxRange} />
           
           <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2.5rem]">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between px-10 pt-10">
+            <CardHeader className="pb-4 flex flex-col md:flex-row md:items-center justify-between px-10 pt-10 gap-4">
               <div className="space-y-1">
                 <CardTitle className="text-2xl font-black flex items-center gap-3 text-slate-800">
                   <Activity className="h-6 w-6 text-primary" /> Visualisasi Tren
                 </CardTitle>
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Waktu Berlin (GMT+1)</p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                  <Calendar className="h-3 w-3" /> Waktu Berlin (GMT+1)
+                </div>
               </div>
-              <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setTimeFilter('24h')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === '24h' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
-                >
-                  24 JAM
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setTimeFilter('all')} 
-                  className={cn("h-9 px-6 text-xs font-black rounded-xl transition-all", timeFilter === 'all' ? "bg-white text-primary shadow-sm" : "text-slate-500")}
-                >
-                  SEMUA
-                </Button>
+              <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-2xl gap-1">
+                {(['3h', '6h', '12h', '24h', '7d', '14d', 'all'] as TimeFilter[]).map((filter) => (
+                  <Button 
+                    key={filter}
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setTimeFilter(filter)} 
+                    className={cn(
+                      "h-8 px-3 text-[10px] font-black rounded-xl transition-all", 
+                      timeFilter === filter ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:bg-white/50"
+                    )}
+                  >
+                    {filter.toUpperCase()}
+                  </Button>
+                ))}
               </div>
             </CardHeader>
             <CardContent className="px-6 pb-10 min-h-[450px]">
