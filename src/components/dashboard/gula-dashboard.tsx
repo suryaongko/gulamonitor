@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { ReadingForm } from "./reading-form";
 import { RangeSettings } from "./range-settings";
 import { MetricsGrid } from "./metrics-grid";
@@ -15,9 +15,9 @@ import { ClarityImport } from "./clarity-import";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText, Calendar, Database } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc, getDocs } from "firebase/firestore";
-import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, Lock, UserPlus, Radio, FileText, Calendar, Database } from "lucide-react";
+import { collection, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
+import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -114,34 +114,35 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   };
 
   /**
-   * PUSAT INGESTI DATA (Deduplikasi & Sinkronisasi)
-   * Menangani semua sumber secara terpusat: Dexcom, Clarity, Contour Care
+   * PUSAT INGESTI DATA (Deduplikasi & Sinkronisasi Massal)
    */
   const handleIngestData = useCallback(async (incoming: Reading[], sourceLabel: string) => {
-    if (!db || !user || !isAppOwner || viewingOwner || isSyncing) return;
+    if (!db || !user || !isAppOwner || viewingOwner || isSyncing || loadingReadings) return;
     
     setIsSyncing(true);
     
-    // 1. Deteksi Duplikat di database lokal (Firestore)
-    const existingMap = new Map<string, boolean>();
+    // 1. Identifikasi data yang sudah ada (Deduplikasi)
+    const existingMap = new Map<number, boolean>();
     allReadings.forEach(r => {
-      const key = `${new Date(r.timestamp).getTime()}_${r.value}`;
-      existingMap.set(key, true);
+      existingMap.set(new Date(r.timestamp).getTime(), true);
     });
 
     const newItems = incoming.filter(r => {
-      const key = `${new Date(r.timestamp).getTime()}_${r.value}`;
-      return !existingMap.has(key);
+      const timeKey = new Date(r.timestamp).getTime();
+      return !existingMap.has(timeKey);
     });
 
     if (newItems.length === 0) {
-      toast({ title: `Database Sinkron`, description: `Data dari ${sourceLabel} sudah ada di database.` });
+      toast({ 
+        title: "Database Sudah Sinkron", 
+        description: `Tidak ada data baru dari ${sourceLabel}. Semua data sudah ada.` 
+      });
       setIsSyncing(false);
       return;
     }
 
     toast({ 
-      title: "Sinkronisasi Database", 
+      title: "Memperbarui Database", 
       description: `Menyimpan ${newItems.length} data baru dari ${sourceLabel}...` 
     });
 
@@ -164,31 +165,36 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         });
         
         await batch.commit();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Delay singkat untuk mencegah limitasi rate Cloud Firestore
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
-      // 3. Sinkronisasi ke Google Sheets (Database Cadangan) secara paralel
-      const itemsToSync = newItems.slice(-250); // Sync 250 terbaru saja agar tidak limit
+      // 3. Sinkronisasi ke Google Sheets secara paralel
+      const itemsToSync = newItems.slice(-300); // Batasi sinkronisasi Sheets agar tidak timeout
       const syncParallel = async (items: Reading[]) => {
-        const pLimit = 5; // Jalankan 5 request sekaligus
+        const pLimit = 8; 
         for (let j = 0; j < items.length; j += pLimit) {
           const chunk = items.slice(j, j + pLimit);
           await Promise.all(chunk.map(item => syncToGoogleSheets(item.value, item.timestamp)));
         }
       };
-      syncParallel(itemsToSync).catch(e => console.error("Sheets sync error:", e));
+      syncParallel(itemsToSync).catch(e => console.error("Sheets sync background error:", e));
 
       toast({ 
-        title: "Database Diperbarui", 
-        description: `Berhasil menambahkan ${newItems.length} data ke database terpusat.` 
+        title: "Berhasil Diperbarui", 
+        description: `${newItems.length} data baru telah masuk ke database terpusat.` 
       });
     } catch (err) {
       console.error("Ingestion Error:", err);
-      toast({ title: "Gagal Sinkronisasi", description: "Terjadi kesalahan saat menyimpan ke database.", variant: "destructive" });
+      toast({ 
+        title: "Gagal Menyimpan", 
+        description: "Terjadi kesalahan sistem saat sinkronisasi database.", 
+        variant: "destructive" 
+      });
     } finally {
       setIsSyncing(false);
     }
-  }, [db, user, isAppOwner, viewingOwner, allReadings, isSyncing]);
+  }, [db, user, isAppOwner, viewingOwner, allReadings, isSyncing, loadingReadings]);
 
   const addManualReading = (value: number, timestamp: string) => {
     const reading: Reading = {
