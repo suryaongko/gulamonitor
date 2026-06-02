@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, ShieldAlert, Lock, UserPlus, Radio, FileText, Calendar } from "lucide-react";
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc, getDocs } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -65,7 +65,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       collection(db, "readings"), 
       where("userId", "==", currentUid),
       orderBy("timestamp", "desc"), 
-      limit(100000) // Ditingkatkan ke 100rb untuk riwayat tanpa batas
+      limit(100000)
     );
   }, [db, currentUid]);
 
@@ -146,19 +146,18 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     const newItems = imported.filter(r => !existingTimes.has(new Date(r.timestamp).getTime()));
     
     if (newItems.length === 0) {
-      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru." });
+      toast({ title: "Data Sudah Lengkap", description: "Tidak ditemukan data baru untuk ditambahkan." });
       setIsImporting(false);
       return;
     }
 
     toast({ 
-      title: "Memproses Data Massal", 
-      description: `Mengunggah ${newItems.length} data baru ke sistem...` 
+      title: "Memproses Impor", 
+      description: `Sedang mengunggah ${newItems.length} data baru...` 
     });
 
     try {
-      // 1. Simpan ke Firestore dalam Batch (500 per batch - limit resmi Firestore)
-      const batchSize = 450; 
+      const batchSize = 400; 
       for (let i = 0; i < newItems.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = newItems.slice(i, i + batchSize);
@@ -174,14 +173,13 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         });
         
         await batch.commit();
-        // Berikan sedikit nafas untuk browser
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
-      // 2. Sinkronisasi ke Google Sheets (Hanya 300 data terbaru agar tidak overload)
+      // Sinkronisasi Sheets hanya untuk data terbaru agar tidak overload
       const itemsToSync = newItems.slice(-300); 
       const syncInParallel = async (items: Reading[]) => {
-        const parallelLimit = 5; // Kurangi limit paralel agar tidak kena rate limit Sheets
+        const parallelLimit = 5;
         for (let j = 0; j < items.length; j += parallelLimit) {
           const chunk = items.slice(j, j + parallelLimit);
           await Promise.all(chunk.map(item => syncToGoogleSheets(item.value, item.timestamp)));
@@ -191,12 +189,12 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
       syncInParallel(itemsToSync).catch(e => console.error("Sheets sync error:", e));
 
       toast({ 
-        title: "Impor Selesai!", 
-        description: `Berhasil menambahkan ${newItems.length} data glukosa.` 
+        title: "Impor Berhasil!", 
+        description: `Berhasil menambahkan ${newItems.length} data ke riwayat.` 
       });
     } catch (err) {
       console.error("Import Error:", err);
-      toast({ title: "Gagal Impor", description: "Terjadi kesalahan saat menyimpan data skala besar.", variant: "destructive" });
+      toast({ title: "Gagal Impor", description: "Terjadi kesalahan sistem saat menyimpan data.", variant: "destructive" });
     } finally {
       setIsImporting(false);
     }
@@ -206,7 +204,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-bold animate-pulse">Memuat riwayat kesehatan ({allReadings.length} data)...</p>
+        <p className="text-muted-foreground font-bold animate-pulse">Memuat data kesehatan...</p>
       </div>
     );
   }

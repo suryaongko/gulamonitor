@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Upload, Loader2, CheckCircle2, AlertCircle, Info } from "lucide-react";
+import { FileText, Upload, Loader2, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
 
@@ -22,21 +22,21 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
   const parseClarityDate = (dateStr: string) => {
     if (!dateStr) return new Date(NaN);
     
-    // Bersihkan karakter kutipan
+    // Bersihkan karakter kutipan dan spasi berlebih
     const cleanStr = dateStr.replace(/"/g, "").trim();
     
-    // Coba standar ISO dulu
+    // 1. Coba standar ISO
     const isoDate = new Date(cleanStr);
     if (!isNaN(isoDate.getTime())) return isoDate;
 
-    // Parsing manual format Jerman/Eropa: DD.MM.YYYY HH:mm:ss
-    const parts = cleanStr.split(/[\.\/\s:]/);
+    // 2. Parsing manual format Jerman/Eropa: DD.MM.YYYY HH:mm:ss atau DD.MM.YYYY, HH:mm:ss
+    const parts = cleanStr.split(/[\.\/\s,:]+/).filter(p => p !== "");
     
     if (parts.length >= 3) {
       const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1;
-      const yearStr = parts[2];
-      const year = yearStr.length === 2 ? 2000 + parseInt(yearStr, 10) : parseInt(yearStr, 10);
+      let year = parseInt(parts[2], 10);
+      if (year < 100) year += 2000;
       
       const hour = parts[3] ? parseInt(parts[3], 10) : 0;
       const min = parts[4] ? parseInt(parts[4], 10) : 0;
@@ -52,10 +52,10 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith(".csv")) {
+    if (!file.name.toLowerCase().endsWith(".csv")) {
       toast({
         title: "Format Salah",
-        description: "Pastikan Anda mengunggah file .csv dari Dexcom Clarity.",
+        description: "Pastikan Anda mengunggah file .csv asli dari Dexcom Clarity.",
         variant: "destructive",
       });
       return;
@@ -67,7 +67,9 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+        if (!text) throw new Error("File kosong atau tidak terbaca.");
+
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
         const readings: Reading[] = [];
 
         let headerIndex = -1;
@@ -75,47 +77,65 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         let timestampIdx = -1;
         let glucoseIdx = -1;
 
-        // 1. Cari baris Header
-        for (let i = 0; i < Math.min(lines.length, 50); i++) {
+        // 1. Deteksi Header & Delimiter secara dinamis
+        for (let i = 0; i < Math.min(lines.length, 100); i++) {
           const line = lines[i].toLowerCase();
           const currentDelimiter = line.includes(";") ? ";" : ",";
           const headers = line.split(currentDelimiter).map(h => h.trim().replace(/"/g, ""));
           
-          const hasTime = headers.some(h => h.includes("timestamp") || h.includes("zeitstempel") || h.includes("date") || h.includes("datum") || h.includes("gerätezeit"));
-          const hasGlucose = headers.some(h => h.includes("glucose") || h.includes("glukose") || h.includes("wert") || h.includes("value") || h.includes("mg/dl"));
+          // Keyword pencarian diperluas untuk format Jerman dan Internasional
+          const hasTime = headers.some(h => 
+            h.includes("timestamp") || h.includes("zeitstempel") || 
+            h.includes("gerätezeit") || h.includes("systemzeit") ||
+            (h.includes("datum") && h.includes("uhrzeit"))
+          );
+          
+          const hasGlucose = headers.some(h => 
+            h.includes("glucose") || h.includes("glukose") || 
+            h.includes("mg/dl") || (h.includes("wert") && !h.includes("status"))
+          );
 
           if (hasTime && hasGlucose) {
             headerIndex = i;
             delimiter = currentDelimiter;
-            timestampIdx = headers.findIndex(h => h.includes("timestamp") || h.includes("zeitstempel") || h.includes("date") || h.includes("datum") || h.includes("gerätezeit"));
-            glucoseIdx = headers.findIndex(h => h.includes("glucose") || h.includes("glukose") || (h.includes("wert") && !h.includes("status")) || h.includes("value") || h.includes("mg/dl"));
+            timestampIdx = headers.findIndex(h => 
+              h.includes("timestamp") || h.includes("zeitstempel") || 
+              h.includes("gerätezeit") || h.includes("systemzeit") ||
+              (h.includes("datum") && h.includes("uhrzeit"))
+            );
+            glucoseIdx = headers.findIndex(h => 
+              h.includes("glucose") || h.includes("glukose") || 
+              h.includes("mg/dl") || (h.includes("wert") && !h.includes("status"))
+            );
             break;
           }
         }
 
         if (headerIndex === -1) {
-          throw new Error("Format file tidak dikenali. Pastikan Anda menggunakan 'Export' CSV dari portal Clarity.");
+          throw new Error("Format header tidak ditemukan. Pastikan Anda mengunduh file 'Export' CSV glukosa.");
         }
 
-        // 2. Proses baris data
+        // 2. Ekstraksi Data
         for (let i = headerIndex + 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
+          const line = lines[i];
+          const parts = line.split(delimiter).map(p => p.trim().replace(/"/g, ""));
           
-          const parts = line.split(delimiter);
           if (parts.length <= Math.max(timestampIdx, glucoseIdx)) continue;
 
-          const timestampPart = parts[timestampIdx]?.trim();
-          const valuePart = parts[glucoseIdx]?.trim().replace(/"/g, "");
+          const timestampPart = parts[timestampIdx];
+          const valuePart = parts[glucoseIdx];
 
-          if (!timestampPart || !valuePart || valuePart === "") continue;
+          if (!timestampPart || !valuePart) continue;
 
-          let value: number;
-          if (valuePart.toLowerCase().includes("low")) {
+          let value: number = NaN;
+          const lowValue = valuePart.toLowerCase();
+          
+          if (lowValue.includes("low") || lowValue.includes("niedrig")) {
             value = 39;
-          } else if (valuePart.toLowerCase().includes("high")) {
+          } else if (lowValue.includes("high") || lowValue.includes("hoch")) {
             value = 401;
           } else {
+            // Tangani format desimal Eropa (koma)
             const cleanValue = valuePart.replace(",", ".");
             value = parseFloat(cleanValue);
           }
@@ -134,11 +154,11 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
         if (readings.length > 0) {
           onImportComplete(readings);
         } else {
-          throw new Error("Tidak ditemukan data glukosa yang valid.");
+          throw new Error("Ditemukan 0 data glukosa. Periksa apakah file berisi data rentang waktu yang benar.");
         }
       } catch (error: any) {
         toast({
-          title: "Gagal Memproses",
+          title: "Gagal Impor",
           description: error.message,
           variant: "destructive",
         });
@@ -162,7 +182,7 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
             <div>
               <CardTitle className="text-2xl font-black">Dexcom Clarity CSV Import</CardTitle>
               <CardDescription className="text-emerald-100">
-                Impor data skala besar langsung dari file CSV (Melewati limit Google Sheets).
+                Impor riwayat glukosa massal tanpa limitasi Google Sheets.
               </CardDescription>
             </div>
           </div>
@@ -171,13 +191,14 @@ export function ClarityImport({ onImportComplete, isOwner }: ClarityImportProps)
           <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
             <h4 className="font-black text-slate-800 flex items-center gap-2">
               <Info className="h-5 w-5 text-blue-500" />
-              Cara Mengatasi Masalah Update:
+              Petunjuk Ekspor Jerman:
             </h4>
             <ol className="text-sm text-slate-600 space-y-3 list-decimal ml-4 font-medium">
-              <li>Login ke <b>clarity.dexcom.eu</b>.</li>
-              <li>Pilih rentang waktu terbaru (misal: 14 hari terakhir).</li>
-              <li>Klik <b>"Ekspor" (Export)</b> dan pilih format CSV.</li>
-              <li>Unggah file di sini. Metode ini <b>DIJAMIN</b> memproses semua data tanpa limitasi 2801 baris Google Sheets.</li>
+              <li>Buka <b>clarity.dexcom.eu</b> dan login.</li>
+              <li>Pilih menu <b>Export (Ekspor)</b>.</li>
+              <li>Pilih rentang waktu (misal: 14 hari atau 30 hari).</li>
+              <li>Pastikan memilih format <b>CSV</b> (bukan PDF).</li>
+              <li>Unggah file tersebut di bawah ini.</li>
             </ol>
           </div>
 
