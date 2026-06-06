@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Activity, Loader2, RefreshCw, Smartphone, ShieldCheck, Globe, AlertCircle } from "lucide-react";
+import { Activity, Loader2, RefreshCw, Smartphone, ShieldCheck, Globe, AlertCircle, CheckCircle2 } from "lucide-react";
 import { syncLibreData } from "@/app/actions/libre-action";
 import { useToast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
@@ -45,12 +45,12 @@ export function LibreSync({ onSyncComplete, isOwner }: LibreSyncProps) {
         onSyncComplete(libreReadings);
         toast({
           title: "Libre Sync Berhasil",
-          description: `Berhasil menarik ${libreReadings.length} data glukosa dari sensor Libre 3.`,
+          description: `Berhasil menarik ${libreReadings.length} data glukosa terbaru dari server.`,
         });
       } else {
         toast({
-          title: "Data Kosong",
-          description: "Koneksi berhasil, namun tidak ada data terbaru yang tersedia. Pastikan sensor Anda sedang aktif.",
+          title: "Data Tidak Ditemukan",
+          description: "Koneksi berhasil, namun server tidak mengembalikan data glukosa terbaru. Periksa status sensor.",
           variant: "destructive",
         });
       }
@@ -76,7 +76,7 @@ export function LibreSync({ onSyncComplete, isOwner }: LibreSyncProps) {
             <div>
               <CardTitle className="text-2xl font-black">FreeStyle Libre 3 Sync</CardTitle>
               <CardDescription className="text-orange-100">
-                Sinkronisasi otomatis dari aplikasi LibreView / LibreLinkUp.
+                Sinkronisasi otomatis via LibreLinkUp (Akun Follower).
               </CardDescription>
             </div>
           </div>
@@ -84,29 +84,29 @@ export function LibreSync({ onSyncComplete, isOwner }: LibreSyncProps) {
         <CardContent className="p-8 space-y-8">
           <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100 space-y-4">
             <h4 className="font-black text-orange-900 flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" /> Persiapan LibreLinkUp:
+              <ShieldCheck className="h-5 w-5" /> Langkah Wajib di Aplikasi Libre 3:
             </h4>
-            <ol className="text-sm text-orange-800 space-y-2 list-decimal ml-4 font-medium">
-              <li>Buka aplikasi <b>FreeStyle Libre 3</b> di HP Anda.</li>
-              <li>Masuk ke menu <b>Connected Apps</b> &rarr; <b>LibreLinkUp</b>.</li>
-              <li>Pastikan Anda sudah menambahkan akun pengikut dan menerima undangannya.</li>
-              <li>Masukkan kredensial akun pengikut tersebut di bawah ini.</li>
+            <ol className="text-sm text-orange-800 space-y-3 list-decimal ml-4 font-medium">
+              <li>Di HP Pasien: Buka App Libre 3 &rarr; <b>Aplikasi Terhubung</b> &rarr; <b>LibreLinkUp</b>.</li>
+              <li>Klik <b>Tambah Pengikut</b> dan masukkan email <u>akun kedua</u> Anda.</li>
+              <li>Di HP Anda: Buka email tersebut, terima undangan, dan buat akun <b>LibreLinkUp</b>.</li>
+              <li>Gunakan email & password akun <b>LibreLinkUp</b> tersebut di bawah ini.</li>
             </ol>
           </div>
 
           <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3">
             <AlertCircle className="h-5 w-5 text-blue-600 shrink-0" />
             <p className="text-xs text-blue-800 font-medium">
-              <b>PENTING:</b> Gunakan akun <b>Follower</b> (Pengikut), bukan akun utama yang terhubung langsung ke sensor di HP Anda.
+              <b>Catatan:</b> Jika baru pertama kali menghubungkan, data mungkin membutuhkan waktu 5-10 menit untuk muncul di server cloud Abbott.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <Label className="text-xs font-black uppercase tracking-widest text-slate-400">Email LibreLinkUp</Label>
+              <Label className="text-xs font-black uppercase tracking-widest text-slate-400">Email Akun Follower</Label>
               <Input 
                 type="email"
-                placeholder="email@example.com" 
+                placeholder="email-follower@example.com" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
                 className="rounded-2xl h-14 bg-slate-50 border-none focus:bg-white transition-colors"
@@ -125,7 +125,7 @@ export function LibreSync({ onSyncComplete, isOwner }: LibreSyncProps) {
           </div>
 
           <div className="space-y-3">
-            <Label className="text-xs font-black uppercase tracking-widest text-slate-400">Wilayah Server (Region)</Label>
+            <Label className="text-xs font-black uppercase tracking-widest text-slate-400">Wilayah Server (Jerman pilih EU)</Label>
             <Select value={region} onValueChange={(val: any) => setRegion(val)}>
               <SelectTrigger className="rounded-2xl h-14 bg-slate-50 border-none">
                 <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ export function LibreSync({ onSyncComplete, isOwner }: LibreSyncProps) {
             className="w-full h-16 rounded-2xl text-lg font-black gap-3 shadow-lg shadow-orange-200 transition-all active:scale-95 bg-orange-500 hover:bg-orange-600"
           >
             {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <RefreshCw className="h-6 w-6" />}
-            Sinkronkan Libre 3
+            Mulai Sinkronisasi Libre 3
           </Button>
         </CardContent>
       </Card>
