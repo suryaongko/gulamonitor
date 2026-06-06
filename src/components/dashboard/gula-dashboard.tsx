@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
@@ -11,11 +10,12 @@ import { BloodSugarChart } from "./blood-sugar-chart";
 import { GoogleSheetsSync } from "./google-sheets-sync";
 import { SharedAccessManager } from "./shared-access-manager";
 import { DexcomSync } from "./dexcom-sync";
+import { LibreSync } from "./libre-sync";
 import { ClarityImport } from "./clarity-import";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, Lock, UserPlus, Radio, FileText, Calendar, Database } from "lucide-react";
+import { Activity, History, Sparkles, FileSpreadsheet, Loader2, Users, Lock, UserPlus, Radio, FileText, Calendar, Database, Smartphone } from "lucide-react";
 import { collection, serverTimestamp, query, orderBy, limit, where, writeBatch, doc } from "firebase/firestore";
 import { useFirestore, useCollection, useUser } from "@/firebase";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,6 @@ export interface Reading {
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmNWxysmsd30pOSPhRRdnuj5Lz8kags9UHVQxV7-i0A4OpNOcYagGaUQMpbzdW6gny/exec";
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTGaOFv2lMN-vaZOXMzqGsit1PASt_vyU46mnY3hVpaOLKZMZ8bBSxDHzlMVmjB_P_rZM21dMM2LJLW/pub?gid=0&single=true&output=csv";
-const APP_OWNER_EMAIL = "surya.ongko@gmail.com";
 
 type TimeFilter = '3h' | '6h' | '12h' | '24h' | '7d' | '14d' | 'all';
 
@@ -50,7 +49,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
   const userEmail = useMemo(() => user?.email?.toLowerCase() || "", [user]);
   
-  // Deteksi izin akses
   const sharedAccessQuery = useMemo(() => {
     if (!db || !userEmail) return null;
     return query(collection(db, "permissions"), where("guestEmail", "==", userEmail));
@@ -58,7 +56,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
   
   const { data: sharedPermissions, loading: loadingPerms } = useCollection(sharedAccessQuery);
 
-  // LOGIKA PENTING: Setiap user bisa melihat datanya sendiri, atau data orang yang memberi izin.
   const currentUid = useMemo(() => {
     if (viewingOwner) return viewingOwner.uid;
     return user?.uid || null;
@@ -117,15 +114,11 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     }
   };
 
-  /**
-   * PUSAT INGESTI DATA (Deduplikasi & Sinkronisasi Massal)
-   */
   const handleIngestData = useCallback(async (incoming: Reading[], sourceLabel: string) => {
     if (!db || !user || viewingOwner || isSyncing || loadingReadings) return;
     
     setIsSyncing(true);
     
-    // 1. Identifikasi data yang sudah ada (Deduplikasi berbasis Waktu & Nilai)
     const existingMap = new Map<string, boolean>();
     allReadings.forEach(r => {
       const key = `${new Date(r.timestamp).getTime()}-${r.value}`;
@@ -140,20 +133,19 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
     if (newItems.length === 0) {
       toast({ 
-        title: "Database Sinkron", 
-        description: `Tidak ada data baru yang unik dari ${sourceLabel}.` 
+        title: "Database Terkini", 
+        description: `Semua data dari ${sourceLabel} sudah tersimpan.` 
       });
       setIsSyncing(false);
       return;
     }
 
     toast({ 
-      title: "Menyimpan Data", 
-      description: `Sedang memproses ${newItems.length} data baru dari ${sourceLabel}...` 
+      title: "Sinkronisasi Database", 
+      description: `Menambahkan ${newItems.length} data baru dari ${sourceLabel}...` 
     });
 
     try {
-      // 2. Batch Write ke Firestore (Chunking untuk stabilitas)
       const batchSize = 450; 
       let totalSaved = 0;
 
@@ -177,7 +169,6 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // 3. Sinkronisasi ke Google Sheets secara paralel (Latar Belakang)
       const itemsToSync = newItems.slice(-500); 
       const syncParallel = async (items: Reading[]) => {
         const pLimit = 5; 
@@ -190,13 +181,13 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
 
       toast({ 
         title: "Berhasil Diperbarui", 
-        description: `${totalSaved} data baru telah disimpan di database terpusat.` 
+        description: `${totalSaved} data baru telah tersimpan di database terpusat.` 
       });
     } catch (err) {
       console.error("Ingestion Error:", err);
       toast({ 
         title: "Gagal Menyimpan", 
-        description: "Terjadi kesalahan sistem saat sinkronisasi database.", 
+        description: "Kesalahan saat menulis ke database.", 
         variant: "destructive" 
       });
     } finally {
@@ -218,17 +209,13 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground font-bold animate-pulse">Memuat Database Terpusat...</p>
+        <p className="text-muted-foreground font-bold animate-pulse">Memuat Database...</p>
       </div>
     );
   }
 
-  // Cek apakah user memiliki akses ke data manapun
-  const hasNoDataAccess = !viewingOwner && allReadings.length === 0 && (!sharedPermissions || sharedPermissions.length === 0);
-
   return (
     <div className="space-y-8 font-body animate-in fade-in duration-500">
-      {/* Header Database Hub */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white/80 backdrop-blur-sm border border-primary/10 rounded-[1.5rem] shadow-sm">
         <div className="flex items-center gap-4">
           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2 flex items-center gap-2">
@@ -240,7 +227,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
             onClick={() => setViewingOwner(null)}
             className="rounded-xl h-10 px-6 font-bold"
           >
-            Database Saya
+            Data Saya
           </Button>
           {sharedPermissions?.map((perm: any) => (
             <Button 
@@ -256,7 +243,7 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
         </div>
         {isSyncing && (
           <div className="flex items-center gap-2 text-primary text-xs font-bold animate-pulse">
-            <Loader2 className="h-4 w-4 animate-spin" /> Menulis ke Firestore...
+            <Loader2 className="h-4 w-4 animate-spin" /> Sedang Menulis...
           </div>
         )}
       </div>
@@ -300,13 +287,16 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
           <Tabs defaultValue="readings" className="w-full">
             <TabsList className="bg-slate-100/50 p-1.5 rounded-[1.8rem] h-auto flex-wrap gap-1.5">
               <TabsTrigger value="readings" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-white">
-                <History className="h-4 w-4 mr-2" /> Riwayat Lengkap
+                <History className="h-4 w-4 mr-2" /> Riwayat
               </TabsTrigger>
               <TabsTrigger value="ai" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-primary data-[state=active]:bg-white">
                 <Sparkles className="h-4 w-4 mr-2" /> Analisis AI
               </TabsTrigger>
               {!viewingOwner && (
                 <>
+                  <TabsTrigger value="libre" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-orange-600 data-[state=active]:bg-white">
+                    <Smartphone className="h-4 w-4 mr-2" /> Libre 3 Sync
+                  </TabsTrigger>
                   <TabsTrigger value="dexcom" className="rounded-2xl py-3 px-8 font-black text-xs uppercase tracking-widest text-blue-600 data-[state=active]:bg-white">
                     <Radio className="h-4 w-4 mr-2" /> Dexcom Sync
                   </TabsTrigger>
@@ -332,6 +322,9 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
               </TabsContent>
               {!viewingOwner && (
                 <>
+                  <TabsContent value="libre">
+                    <LibreSync onSyncComplete={(data) => handleIngestData(data, "Libre 3")} isOwner={true} />
+                  </TabsContent>
                   <TabsContent value="dexcom">
                     <DexcomSync onSyncComplete={(data) => handleIngestData(data, "Dexcom CGM")} isOwner={true} />
                   </TabsContent>
@@ -383,4 +376,3 @@ export function GulaDashboard({ openRequestDialog }: GulaDashboardProps) {
     </div>
   );
 }
-
