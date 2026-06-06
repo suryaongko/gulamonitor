@@ -25,7 +25,7 @@ export async function syncLibreData(credentials: {
       headers: {
         'Content-Type': 'application/json',
         'product': 'llu.android',
-        'version': '4.7.0',
+        'version': '4.12.0',
       },
       body: JSON.stringify({
         email: credentials.email,
@@ -34,15 +34,15 @@ export async function syncLibreData(credentials: {
     });
 
     if (!loginResponse.ok) {
-      const errorData = await loginResponse.json();
-      throw new Error(errorData?.message || 'Gagal login ke LibreLinkUp. Periksa email/password.');
+      const errorData = await loginResponse.json().catch(() => ({}));
+      throw new Error(errorData?.message || 'Gagal login ke LibreLinkUp. Pastikan email dan password akun pengikut (follower) Anda benar.');
     }
 
     const loginData = await loginResponse.json();
     const token = loginData?.data?.authTicket?.token;
 
     if (!token) {
-      throw new Error('Token otentikasi tidak ditemukan.');
+      throw new Error('Token otentikasi tidak ditemukan. Silakan coba login kembali.');
     }
 
     // 2. Ambil daftar koneksi (Pasien)
@@ -52,19 +52,24 @@ export async function syncLibreData(credentials: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         'product': 'llu.android',
-        'version': '4.7.0',
+        'version': '4.12.0',
       },
     });
+
+    if (!connectionsResponse.ok) {
+      throw new Error('Gagal mengambil daftar koneksi pasien.');
+    }
 
     const connectionsData = await connectionsResponse.json();
     const connections = connectionsData?.data;
 
     if (!Array.isArray(connections) || connections.length === 0) {
-      throw new Error('Tidak ada pasien yang terhubung. Pastikan Anda sudah menerima undangan berbagi di aplikasi LibreLinkUp.');
+      throw new Error('Tidak ada pasien yang terhubung. Pastikan Anda sudah menerima undangan berbagi (Share) di aplikasi LibreLinkUp HP Anda.');
     }
 
-    // Ambil koneksi pertama (biasanya diri sendiri atau pasien utama)
-    const patientId = connections[0].patientId;
+    // Ambil koneksi pertama yang memiliki data glukosa aktif
+    const activeConnection = connections.find(c => c.patientId) || connections[0];
+    const patientId = activeConnection.patientId;
 
     // 3. Ambil data glukosa terbaru (Grafik)
     const glucoseResponse = await fetch(`${baseUrl}/llu/connections/${patientId}/graph`, {
@@ -73,9 +78,13 @@ export async function syncLibreData(credentials: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         'product': 'llu.android',
-        'version': '4.7.0',
+        'version': '4.12.0',
       },
     });
+
+    if (!glucoseResponse.ok) {
+      throw new Error('Koneksi berhasil, namun gagal menarik grafik data. Periksa status sensor Anda.');
+    }
 
     const glucoseData = await glucoseResponse.json();
     const graphData = glucoseData?.data?.graphData;
@@ -92,6 +101,6 @@ export async function syncLibreData(credentials: {
 
   } catch (error: any) {
     console.error('Libre Sync Error:', error);
-    throw new Error(error.message || 'Terjadi kesalahan sistem saat menghubungi LibreLinkUp.');
+    throw new Error(error.message || 'Terjadi kesalahan sistem saat menghubungi server LibreLinkUp.');
   }
 }

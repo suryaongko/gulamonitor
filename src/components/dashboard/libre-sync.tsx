@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Activity, Loader2, RefreshCw, Smartphone, ShieldCheck, Globe } from "lucide-react";
+import { Activity, Loader2, RefreshCw, Smartphone, ShieldCheck, Globe, AlertCircle } from "lucide-react";
 import { syncLibreData } from "@/app/actions/libre-action";
 import { useToast } from "@/hooks/use-toast";
 import { Reading } from "./gula-dashboard";
@@ -50,7 +50,7 @@ export function LibreSync({ onSyncComplete, isOwner }: LibreSyncProps) {
       } else {
         toast({
           title: "Data Kosong",
-          description: "Koneksi berhasil, namun tidak ada data terbaru yang tersedia.",
+          description: "Koneksi berhasil, namun tidak ada data terbaru yang tersedia. Pastikan sensor Anda sedang aktif.",
           variant: "destructive",
         });
       }
@@ -89,9 +89,16 @@ export function LibreSync({ onSyncComplete, isOwner }: LibreSyncProps) {
             <ol className="text-sm text-orange-800 space-y-2 list-decimal ml-4 font-medium">
               <li>Buka aplikasi <b>FreeStyle Libre 3</b> di HP Anda.</li>
               <li>Masuk ke menu <b>Connected Apps</b> &rarr; <b>LibreLinkUp</b>.</li>
-              <li>Tambahkan akun pengikut (Email yang berbeda dengan akun utama).</li>
+              <li>Pastikan Anda sudah menambahkan akun pengikut dan menerima undangannya.</li>
               <li>Masukkan kredensial akun pengikut tersebut di bawah ini.</li>
             </ol>
+          </div>
+
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 shrink-0" />
+            <p className="text-xs text-blue-800 font-medium">
+              <b>PENTING:</b> Gunakan akun <b>Follower</b> (Pengikut), bukan akun utama yang terhubung langsung ke sensor di HP Anda.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
